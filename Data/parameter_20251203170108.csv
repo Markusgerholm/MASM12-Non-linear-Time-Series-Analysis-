@@ -1,0 +1,41 @@
+parameterKey,parameterName,parameterDescription,loadTimestamp
+9,Lufttryck reducerat havsytans nivå,"vid havsytans nivå, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+24,Långvågs-Irradians,"medelvärde 1 timma, varje timme",2025-11-01 05:13:45.186
+40,Markens tillstånd,"momentanvärde, 1 gång/dygn, kl 06",2025-11-01 05:13:45.186
+25,Max av MedelVindhastighet,"maximum av medelvärde 10 min, under 3 timmar, 1 gång/tim",2025-11-01 05:13:45.186
+28,Molnbas,"lägsta molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+30,Molnbas,"andra molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+32,Molnbas,"tredje molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+34,Molnbas,"fjärde molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+36,Molnbas,"lägsta molnbas, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+37,Molnbas,"lägsta molnbas, min under 15 min, 1 gång/tim",2025-11-01 05:13:45.186
+5,Nederbördsmängd,"summa 1 dygn, 1 gång/dygn, kl 06",2025-11-01 05:13:45.186
+7,Nederbördsmängd,"summa 1 timme, 1 gång/tim",2025-11-01 05:13:45.186
+6,Relativ Luftfuktighet,"momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+13,Rådande väder,"momentanvärde, 1 gång/tim resp 8 gånger/dygn",2025-11-01 05:13:45.186
+12,Sikt,"momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+8,Snödjup,"momentanvärde, 1 gång/dygn, kl 06",2025-11-01 05:13:45.186
+10,Solskenstid,"summa 1 timme, 1 gång/tim",2025-11-01 05:13:45.186
+16,Total molnmängd,"momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+4,Vindhastighet,"medelvärde 10 min, 1 gång/tim",2025-11-01 05:13:45.186
+3,Vindriktning,"medelvärde 10 min, 1 gång/tim",2025-11-01 05:13:45.186
+29,Molnmängd,"lägsta molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+31,Molnmängd,"andra molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+33,Molnmängd,"tredje molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+35,Molnmängd,"fjärde molnlager, momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+17,Nederbörd,"2 gånger/dygn, kl 06 och 18",2025-11-01 05:13:45.186
+18,Nederbörd,"1 gång/dygn, kl 18",2025-11-01 05:13:45.186
+15,Nederbördsintensitet,"max under 15 min, 4 gånger/tim",2025-11-01 05:13:45.186
+38,Nederbördsintensitet,"max av medel under 15 min, 4 gånger/tim",2025-11-01 05:13:45.186
+23,Nederbördsmängd,"summa, 1 gång per månad",2025-11-01 05:13:45.186
+14,Nederbördsmängd,"summa 15 min, 4 gånger/tim",2025-11-01 05:13:45.186
+21,Byvind,"max, 1 gång/tim",2025-11-01 05:13:45.186
+39,Daggpunktstemperatur,"momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+11,Global Irradians (svenska stationer),"medelvärde 1 timma, varje timme",2025-11-01 05:13:45.186
+22,Lufttemperatur,"medel, 1 gång per månad",2025-11-01 05:13:45.186
+26,Lufttemperatur,"min, 2 gånger per dygn, kl 06 och 18",2025-11-01 05:13:45.186
+27,Lufttemperatur,"max, 2 gånger per dygn, kl 06 och 18",2025-11-01 05:13:45.186
+19,Lufttemperatur,"min, 1 gång per dygn",2025-11-01 05:13:45.186
+1,Lufttemperatur,"momentanvärde, 1 gång/tim",2025-11-01 05:13:45.186
+2,Lufttemperatur,"medelvärde 1 dygn, 1 gång/dygn, kl 00",2025-11-01 05:13:45.186
+20,Lufttemperatur,"max, 1 gång per dygn",2025-11-01 05:13:45.186
