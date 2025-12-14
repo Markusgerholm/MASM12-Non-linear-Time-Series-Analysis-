@@ -16,26 +16,26 @@ falsterbo4 <- read.csv("Data/vind_falsterbo.csv", sep = ";")
 ## Ängelholm
 ängelholm1 <- read.csv("Data/temp_ängelholm.csv", sep = ";")
 ängelholm2 <- read.csv("Data/relativluftfuktighet_ängelholm.csv", sep = ";")
-# FANNS EJ: ängelholm3 <- read.csv("Data/", sep = ";")
+# nederbörd FANNS EJ: ängelholm3 <- read.csv("Data/", sep = ";")
 ängelholm4 <- read.csv("Data/vind_ängelholm.csv", sep = ";")
 
 ## Hallands Väderö
-halland1 <- read.csv("Data/", sep = ";")
-halland2 <- read.csv("Data/", sep = ";")
-halland3 <- read.csv("Data/", sep = ";")
-halland4 <- read.csv("Data/", sep = ";")
+halland1 <- read.csv("Data/temp_halland.csv", sep = ";")
+halland2 <- read.csv("Data/relativluftfuktighet_halland.csv", sep = ";")
+halland3 <- read.csv("Data/nederbörd_halland.csv", sep = ";")
+halland4 <- read.csv("Data/vind_halland.csv", sep = ";")
 
 ## Hörby
-hörby1 <- read.csv("Data/", sep = ";")
-hörby2 <- read.csv("Data/", sep = ";")
-hörby3 <- read.csv("Data/", sep = ";")
-hörby4 <- read.csv("Data/", sep = ";")
+hörby1 <- read.csv("Data/temp_hörby.csv", sep = ";")
+hörby2 <- read.csv("Data/relativluftfuktighet_hörby.csv", sep = ";")
+hörby3 <- read.csv("Data/nederbörd_hörby.csv", sep = ";")
+hörby4 <- read.csv("Data/vind_hörby.csv", sep = ";")
 
 ## Malmö
-malmö1 <- read.csv("Data/", sep = ";")
-malmö2 <- read.csv("Data/", sep = ";")
-malmö3 <- read.csv("Data/", sep = ";")
-malmö4 <- read.csv("Data/", sep = ";")
+malmö1 <- read.csv("Data/temp_malmö.csv", sep = ";")
+malmö2 <- read.csv("Data/relativluftfuktighet_malmö.csv", sep = ";")
+malmö3 <- read.csv("Data/nederbörd_malmö.csv", sep = ";")
+malmö4 <- read.csv("Data/vind_malmö.csv", sep = ";")
 
 
 
