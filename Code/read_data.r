@@ -1,6 +1,6 @@
 ## Libraries
 library(readr)
-
+library(dplyr)
 ## Lund - soldata
 lund <- readr::read_csv("Data/lund.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))

@@ -1,0 +1,183 @@
+---
+title: "MarkusCode"
+output: html_document
+---
+
+## Loading data
+
+```{r}
+setwd("..")
+source("Code/read_data.r")
+```
+
+## Libraries
+
+```{r}
+library(dplr)
+library(zoo)
+```
+
+## Extracting 2024-2025
+
+
+```{r}
+start <- 1
+end <- 3000
+helsingborg_2024_2025 <- helsingborg %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_he <- helsingborg_2024_2025[start:end, ]
+
+ängelholm_2024_2025 <- ängelholm %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_ä <- ängelholm_2024_2025[start:end, ]
+
+falsterbo_2024_2025 <- falsterbo %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_f <- falsterbo_2024_2025[start:end, ]
+
+hörby_2024_2025 <- hörby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_hö <-hörby_2024_2025[start:end, ]
+
+malmö_2024_2025 <- malmö %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_m <- malmö_2024_2025[start:end, ]
+
+halland_2024_2025 <- halland %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+df_ha <- halland_2024_2025[start:end, ]
+```
+
+## Creating regimes based on wind direction
+
+```{r}
+wind_regime <- function(wd) {
+  wd <- wd %% 360                      # wrap to [0,360)
+  out <- rep(NA_character_, length(wd))
+
+  out[wd >   0 & wd <=  90] <- "R1"
+  out[wd >  90 & wd <= 180] <- "R2"
+  out[wd > 180 & wd <= 270] <- "R3"
+  out[wd > 270 & wd <  360] <- "R4"
+  out[wd == 0]              <- "R4"    # 0 degrees treated as 360, so belongs to (270-360]
+
+  factor(out, levels = c("R1","R2","R3","R4"))
+}
+```
+
+```{r}
+regime <- wind_regime(df_he$Vindriktning)
+df_he$regime <- regime
+```
+
+## Filtering based on regime
+
+```{r}
+df_he_R <- filter(df_he, regime == "R3")
+
+# times where df_h is R1
+t_R <- df_he_R$ts_utc
+
+# keep those times in df_ä
+df_temp <- df_f
+df_x <- df_temp[df_temp$ts_utc %in% t_R, ]
+idx_missing <- which(is.na(df_x$Lufttemperatur))  # TRUE for NA and NaN
+
+#df_x[-idx_missing, ]
+#df_he_R[-idx_missing, ]
+mean(df_he_R$Vindhastighet)
+```
+
+# R1: good for Ängelhom/Halland
+# R2: 
+# R3:
+# R4: 
+
+## CCF R1 Ängelholm
+
+```{r}
+df_he_R <- diff(df_he_R$Lufttemperatur, lag = 1)
+df_x <- diff(df_x$Lufttemperatur, lag = 1)
+ccf(df_he_R$Lufttemperatur, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass)
+```
+
+## CCF R1 Halland
+
+```{r}
+# If you use dplyr::filter, call it explicitly to avoid stats::filter confusion
+
+df_he$regime <- wind_regime(df_he$Vindriktning)
+
+# keep only times when wind regime is R1 (in Helsingborg)
+df_he_R1 <- df_he[df_he$regime == "R1", c("ts_utc", "Lufttemperatur")]
+
+# align (inner join) with Ängelholm temps by timestamp
+df_pair <- merge(
+  df_he_R1,
+  df_m[, c("ts_utc", "Lufttemperatur")],
+  by = "ts_utc",
+  all = FALSE
+)
+
+# rename to keep them straight
+names(df_pair) <- c("ts_utc", "temp_he", "temp_ang")
+
+# drop missing values in either series (important for ccf)
+df_pair <- df_pair[complete.cases(df_pair$temp_he, df_pair$temp_ang), ]
+
+# now CCF
+ccf(df_pair$temp_he, df_pair$temp_ang, lag.max = 50)
+
+```
+
+## CCF R1 Hörby
+
+```{r}
+ccf(df_he_R$Lufttemperatur, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass)
+```
+
+## ACF of temperature
+
+```{r}
+temp0 <- temp - mean(temp)
+e = diff(temp0, lag = 24)
+pacf(e, lag.max = 30)
+```
+
+
+```{r}
+df_ar <- df %>%                      # <- replace df with your data frame
+  arrange(ts_utc) %>%                    # <- replace ts with your timestamp column
+  mutate(
+    y_lag1  = lag(Lufttemperatur, 1),             # <- replace y with your variable
+    y_lag24 = lag(Lufttemperatur, 24)
+  ) %>%
+  filter(!is.na(y_lag24), !is.na(y_lag1))
+
+fit <- lm(Lufttemperatur~ y_lag1 + y_lag24, data = df_ar)
+summary(fit)
+```
+
+```{r}
+acf(fit$residuals, lag.max = 30)
+
+```
+

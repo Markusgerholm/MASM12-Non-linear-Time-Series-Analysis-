@@ -8,7 +8,7 @@ library(ggplot2)
 labels16 <- c("N","NNE","NE","ENE","E","ESE","SE","SSE",
               "S","SSW","SW","WSW","W","WNW","NW","NNW")
 
-df_dir <- helsingborg4 %>%
+df_dir <- helsingborg %>%
   filter(!is.na(Vindriktning)) %>%
   mutate(
     wd = Vindriktning %% 360,
