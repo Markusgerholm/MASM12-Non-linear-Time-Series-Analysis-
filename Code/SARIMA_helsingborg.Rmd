@@ -1,0 +1,196 @@
+---
+title: "SARIMA_helsingborg"
+output: html_document
+---
+
+## TO DO
+Kolla vindriktning säsongsvis från Helsingborg
+Hypotes: sällan vind norr ifrån ->
+
+## Loading data
+
+```{r}
+setwd("..")
+source("Code/read_data.r")
+```
+
+```{r}
+library(zoo)
+library(forecast)
+```
+
+```{r}
+helsingborg_2024_2025 <- helsingborg %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+nidingen_2024_2025 <- nidingen %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+falsterbo_2024_2025 <- falsterbo %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+```
+
+## "Stationary" period
+
+```{r}
+start <- 3000
+end <- 6000
+df_he <- helsingborg_2024_2025[start:end, ]
+df_ni <- nidingen_2024_2025[start:end, ]
+df_f <- falsterbo_2024_2025[start:end, ]
+plot(df_he$Lufttemperatur, type = "l")
+```
+
+## Creating time series object
+
+```{r}
+y <- zoo(df_he$Lufttemperatur, order.by = df_he$ts_utc)
+```
+
+## Fixing parameters
+
+```{r}
+y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
+fixed = c(ar1 = 0, ar2 = NA, rep(0, 8), a11 = NA, ma1 = NA, sma1 = NA)
+fit <- Arima(y_ts,
+                 order = c(1,1,1),
+                 fixed = fixed,
+                 seasonal = c(0,1,1))   # SARIMA(0,0,0)(1,0,0)[24]
+
+coef(fit)   # shows the seasonal AR coefficient (lag 24)
+summary(fit)
+```
+
+## Simple model SARIMA
+
+```{r}
+y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
+fit <- Arima(y_ts,
+                 order = c(1,0,0),
+                 seasonal = c(0,1,1))   # SARIMA(0,0,0)(1,0,0)[24]
+
+#coef(fit)   # shows the seasonal AR coefficient (lag 24)
+summary(fit)
+```
+## ACF/PACF
+
+```{r}
+#acf(fit_a24$residuals, lag.max = 30)
+
+r <-  acf(as.numeric(fit$residuals), lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+pacf(as.numeric(fit$residuals), lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+
+```
+
+## Adding residuals to df
+
+```{r}
+df_he$res <- fit$residuals
+```
+
+## Regimes for wind direction
+
+```{r}
+wind_regime <- function(wd, rot = 45) {
+  wd <- (wd - rot) %% 360   # rotate regimes clockwise by rot degrees
+  out <- rep(NA_character_, length(wd))
+
+  out[wd >   0 & wd <=  90] <- "R1"
+  out[wd >  90 & wd <= 180] <- "R2"
+  out[wd > 180 & wd <= 270] <- "R3"
+  out[wd > 270 & wd <  360] <- "R4"
+  out[wd == 0]              <- "R4"
+
+  factor(out, levels = c("R1","R2","R3","R4"))
+}
+
+df_he$regime <- wind_regime(df_he$Vindriktning, rot = 45)
+
+```
+
+
+```{r}
+plot_regime_compass <- function(rot = 25) {
+  regimes <- data.frame(
+    name = c("R1","R2","R3","R4"),
+    from = c(0, 90, 180, 270) + rot,
+    to   = c(90, 180, 270, 360) + rot
+  )
+
+  plot(0, 0, type="n", asp=1, xlim=c(-1.2,1.2), ylim=c(-1.2,1.2),
+       axes=FALSE, xlab="", ylab="")
+  symbols(0, 0, circles=1, inches=FALSE, add=TRUE)
+
+  deg2rad <- function(deg) (90 - deg) * pi/180  # 0° = North at top
+
+  for (i in 1:nrow(regimes)) {
+    a1 <- deg2rad(regimes$from[i])
+    a2 <- deg2rad(regimes$to[i])
+    th <- seq(a1, a2, length.out = 200)
+
+    polygon(c(0, cos(th), 0), c(0, sin(th), 0), border="black")
+    mid <- deg2rad((regimes$from[i] + regimes$to[i]) / 2)
+    text(0.75*cos(mid), 0.75*sin(mid), regimes$name[i], cex=1.2)
+  }
+
+  text(0,  1.1, "N"); text(1.1, 0, "E"); text(0, -1.1, "S"); text(-1.1, 0, "W")
+}
+
+plot_regime_compass(rot =15)
+
+```
+
+
+## Filtering based on regime
+
+```{r}
+df_he_R <- filter(df_he, regime == "R2")
+
+# times where df_h is R1<
+t_R <- df_he_R$ts_utc
+
+# keep those times in df_ä
+df_temp <- df_f
+df_x <- df_temp[df_temp$ts_utc %in% t_R, ]
+
+#idx_missing <- which(is.na(df_x$Lufttemperatur))  # TRUE for NA and NaN
+
+r = ccf(df_he_R$res, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass, plot = FALSE)
+pos <- r$lag >= 0
+
+n <- sum(complete.cases(df_he_R$res, df_x$Lufttemperatur))
+ci <- 1.96 / sqrt(n)
+
+plot(r$lag[pos], r$acf[pos], type = "h",
+     xlab = "Lag", ylab = "CCF (positive lags)", main = "CCF")
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
+```
+
+# R1: 
+# R2: 
+# R3:
+# R4: Falsterbo!
+
+## CCF R3 Falsterbo
+
+```{r}
+#df_he_R <- diff(df_he_R$res, lag = 1)
+#df_x <- diff(df_x$Lufttemperatur, lag = 1)
+ccf(df_he_R$res, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass)
+```
+
+```{r}
+
+```

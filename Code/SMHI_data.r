@@ -72,27 +72,27 @@ falsterbo <- tibble(ts_utc = ref) %>%
 ## Saving csv file
 #write.csv(falsterbo, "falsterbo.csv", row.names = FALSE, fileEncoding = "UTF-8")
 
-## Ängelholm
-ängelholm1 <- read.csv("Data/temp_ängelholm.csv", sep = ";")
-ängelholm2 <- read.csv("Data/relativluftfuktighet_ängelholm.csv", sep = ";")
-# nederbörd FANNS EJ: ängelholm3 <- read.csv("Data/", sep = ";")
-ängelholm4 <- read.csv("Data/vind_ängelholm.csv", sep = ";")
+## Nidingen
+nidingen1 <- read.csv("Data/nidingen_temp.csv", sep = ";")
+nidingen4 <- read.csv("Data/nidingen_vind.csv", sep = ";")
 
-## Creating master data frame for Ängelholm where missing time stamps are NA
-temp   <- make_ts(ängelholm1) %>% select(ts_utc, Lufttemperatur)
-rh     <- make_ts(ängelholm2) %>% select(ts_utc, Relativ.Luftfuktighet)
-wind_direction   <- make_ts(ängelholm4) %>% select(ts_utc, Vindriktning)
-wind_speed <- make_ts(ängelholm4) %>% select(ts_utc, Vindhastighet)
+
+temp   <- make_ts(nidingen1) %>% select(ts_utc, Lufttemperatur)
+#rh     <- make_ts(halland2) %>% select(ts_utc, Relativ.Luftfuktighet)
+#precip <- make_ts(halland3) %>% select(ts_utc, Nederbördsmängd)
+wind_direction   <- make_ts(nidingen4) %>% select(ts_utc, Vindriktning)
+wind_speed <- make_ts(nidingen4) %>% select(ts_utc, Vindhastighet)
 ref <- seq(as.POSIXct("2021-01-01 00:00:00", tz="UTC"),
            as.POSIXct("2025-08-31 23:00:00", tz="UTC"),
            by="hour")
 
-ängelholm <- tibble(ts_utc = ref) %>%
+nidingen <- tibble(ts_utc = ref) %>%
   left_join(temp,   by="ts_utc") %>%
-  left_join(rh,     by="ts_utc") %>%
+  #left_join(rh,     by="ts_utc") %>%
+  #left_join(precip, by="ts_utc") %>%
   left_join(wind_direction,   by="ts_utc") %>%
   left_join(wind_speed, by="ts_utc")
-ängelholm$Nederbördsmängd <- NA
+#write.csv(nidingen, "nidingen.csv", row.names = FALSE, fileEncoding = "UTF-8")
 
 ## Saving csv file
 #write.csv(ängelholm, "ängelholm.csv", row.names = FALSE, fileEncoding = "UTF-8")

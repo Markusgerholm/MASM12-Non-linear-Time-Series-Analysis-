@@ -9,12 +9,12 @@ lund <- readr::read_csv("Data/lund.csv") %>%
 helsingborg <- readr::read_csv("Data/helsingborg.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
 
-## Falsterbo
-falsterbo <- readr::read_csv("Data/falsterbo.csv") %>%
+## Nidingen
+nidingen <- readr::read_csv("Data/nidingen.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
 
-## Ängelholm
-ängelholm <- readr::read_csv("Data/ängelholm.csv") %>%
+## Falsterbo
+falsterbo <- readr::read_csv("Data/falsterbo.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
 
 ## Hallands Väderö

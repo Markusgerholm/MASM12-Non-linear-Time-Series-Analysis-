@@ -66,6 +66,36 @@ halland_2024_2025 <- halland %>%
 df_ha <- halland_2024_2025[start:end, ]
 ```
 
+```{r}
+missing_values_per_6months <- function(df, ts_col = "ts_utc", cols = NULL, tz = "UTC") {
+  ts <- df[[ts_col]]
+  if (!inherits(ts, "POSIXct")) ts <- as.POSIXct(ts, tz = tz)
+
+  # which columns to check for missing values
+  if (is.null(cols)) cols <- setdiff(names(df), ts_col)
+
+  # build half-year label (H1 = Jan–Jun, H2 = Jul–Dec)
+  lt <- as.POSIXlt(ts, tz = tz)
+  year <- lt$year + 1900
+  month <- lt$mon + 1
+  period <- paste0(year, ifelse(month <= 6, "H1", "H2"))
+
+  # count missing (is.na catches both NA and NaN)
+  miss_mat <- sapply(cols, function(cl) is.na(df[[cl]]))
+  if (is.vector(miss_mat)) miss_mat <- matrix(miss_mat, ncol = length(cols))
+  colnames(miss_mat) <- cols
+
+  out <- aggregate(miss_mat, by = list(period = period), FUN = sum)
+  out$n_rows <- as.integer(table(period)[out$period])
+  out$total_missing <- rowSums(out[cols], na.rm = TRUE)
+
+  out[order(out$period), c("period", "n_rows", cols, "total_missing")]
+}
+miss_6m <- missing_values_per_6months(helsingborg_2024_2025)
+miss_6m
+```
+
+
 ## Creating regimes based on wind direction
 
 ```{r}
