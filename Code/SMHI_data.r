@@ -76,7 +76,6 @@ falsterbo <- tibble(ts_utc = ref) %>%
 nidingen1 <- read.csv("Data/nidingen_temp.csv", sep = ";")
 nidingen4 <- read.csv("Data/nidingen_vind.csv", sep = ";")
 
-
 temp   <- make_ts(nidingen1) %>% select(ts_utc, Lufttemperatur)
 #rh     <- make_ts(halland2) %>% select(ts_utc, Relativ.Luftfuktighet)
 #precip <- make_ts(halland3) %>% select(ts_utc, Nederbördsmängd)
@@ -93,6 +92,47 @@ nidingen <- tibble(ts_utc = ref) %>%
   left_join(wind_direction,   by="ts_utc") %>%
   left_join(wind_speed, by="ts_utc")
 #write.csv(nidingen, "nidingen.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+## Skillinge
+skillinge1 <- read.csv("Data/temp_skillinge.csv", sep = ";")
+temp   <- make_ts(skillinge1) %>% select(ts_utc, Lufttemperatur)
+ref <- seq(as.POSIXct("2021-01-01 00:00:00", tz="UTC"),
+           as.POSIXct("2025-08-31 23:00:00", tz="UTC"),
+           by="hour")
+skillinge <- tibble(ts_utc = ref) %>%
+  left_join(temp,   by="ts_utc")
+#write.csv(skillinge, "skillinge.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+## Ullared
+ullared1 <- read.csv("Data/temp_ullared.csv", sep = ";")
+temp   <- make_ts(ullared1) %>% select(ts_utc, Lufttemperatur)
+ref <- seq(as.POSIXct("2021-01-01 00:00:00", tz="UTC"),
+           as.POSIXct("2025-08-31 23:00:00", tz="UTC"),
+           by="hour")
+ullared <- tibble(ts_utc = ref) %>%
+  left_join(temp,   by="ts_utc")
+#write.csv(ullared, "ullared.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+## Hästveda
+hästveda1 <- read.csv("Data/temp_hästveda.csv", sep = ";")
+temp   <- make_ts(hästveda1) %>% select(ts_utc, Lufttemperatur)
+ref <- seq(as.POSIXct("2021-01-01 00:00:00", tz="UTC"),
+           as.POSIXct("2025-08-31 23:00:00", tz="UTC"),
+           by="hour")
+hästveda <- tibble(ts_utc = ref) %>%
+  left_join(temp,   by="ts_utc")
+#write.csv(hästveda, "hästveda.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+## Ljungby
+ljungby1 <- read.csv("Data/temp_ljungby.csv", sep = ";")
+temp   <- make_ts(ljungby1) %>% select(ts_utc, Lufttemperatur)
+ref <- seq(as.POSIXct("2021-01-01 00:00:00", tz="UTC"),
+           as.POSIXct("2025-08-31 23:00:00", tz="UTC"),
+           by="hour")
+ljungby <- tibble(ts_utc = ref) %>%
+  left_join(temp,   by="ts_utc")
+write.csv(ljungby, "ljungby.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
 
 ## Saving csv file
 #write.csv(ängelholm, "ängelholm.csv", row.names = FALSE, fileEncoding = "UTF-8")

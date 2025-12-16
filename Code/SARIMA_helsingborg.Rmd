@@ -17,6 +17,8 @@ source("Code/read_data.r")
 ```{r}
 library(zoo)
 library(forecast)
+library(ggplot2)
+library(dplyr)
 ```
 
 ```{r}
@@ -30,7 +32,32 @@ nidingen_2024_2025 <- nidingen %>%
     ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
   )
+hörby_2024_2025 <- hörby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
 falsterbo_2024_2025 <- falsterbo %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+skillinge_2024_2025 <- skillinge %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+ullared_2024_2025 <- ullared %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+ljungby_2024_2025 <- ljungby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+hästveda_2024_2025 <- hästveda %>%
   filter(
     ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
@@ -42,10 +69,14 @@ falsterbo_2024_2025 <- falsterbo %>%
 ```{r}
 start <- 3000
 end <- 6000
-df_he <- helsingborg_2024_2025[start:end, ]
-df_ni <- nidingen_2024_2025[start:end, ]
-df_f <- falsterbo_2024_2025[start:end, ]
-plot(df_he$Lufttemperatur, type = "l")
+df_he <- helsingborg_2024_2025[start:end, ] # center
+df_ni <- nidingen_2024_2025[start:end, ] # north west
+df_fa <- falsterbo_2024_2025[start:end, ] # south
+df_hä <- hästveda_2024_2025[start:end, ] # east north east
+df_lj <- ljungby_2024_2025[start:end, ] # north east
+df_ul <- ullared_2024_2025[start:end, ] # north
+df_sk <- skillinge_2024_2025[start:end, ] # south west
+df_hö <- hörby_2024_2025[start:end, ] # east
 ```
 
 ## Creating time series object
@@ -99,6 +130,8 @@ axis(1, at = 0:100, labels = 0:100)   # label every lag
 df_he$res <- fit$residuals
 ```
 
+## Checking where wind comes from
+
 ## Regimes for wind direction
 
 ```{r}
@@ -121,7 +154,7 @@ df_he$regime <- wind_regime(df_he$Vindriktning, rot = 45)
 
 
 ```{r}
-plot_regime_compass <- function(rot = 25) {
+plot_regime_compass <- function(rot = 0) {
   regimes <- data.frame(
     name = c("R1","R2","R3","R4"),
     from = c(0, 90, 180, 270) + rot,
@@ -147,7 +180,52 @@ plot_regime_compass <- function(rot = 25) {
   text(0,  1.1, "N"); text(1.1, 0, "E"); text(0, -1.1, "S"); text(-1.1, 0, "W")
 }
 
-plot_regime_compass(rot =15)
+plot_regime_compass(rot =0)
+
+```
+
+```{r}
+labels16 <- c("N","NNE","NE","ENE","E","ESE","SE","SSE",
+              "S","SSW","SW","WSW","W","WNW","NW","NNW")
+# speed bins similar to your example (m/s)
+spd_breaks <- c(0,2,4,6,8,10,12,14,16,18,20,Inf)
+spd_labels <- c("0–2","2–4","4–6","6–8","8–10","10–12",
+                "12–14","14–16","16–18","18–20","20+")
+rose_df <- df_he %>%
+  filter(!is.na(Vindriktning), !is.na(Vindhastighet)) %>%
+  mutate(
+    wd = Vindriktning %% 360,
+    dir16 = labels16[(floor((wd + 11.25) / 22.5) %% 16) + 1],
+    dir16 = factor(dir16, levels = labels16, ordered = TRUE),
+    spd_bin = cut(Vindhastighet,
+                  breaks = spd_breaks, labels = spd_labels,
+                  include.lowest = TRUE, right = FALSE)
+  ) %>%
+  count(dir16, spd_bin) %>%
+  mutate(pct = 100 * n / sum(n)) 
+
+rose_df <- rose_df %>%
+  mutate(dir16 = factor(dir16, levels = labels16, ordered = TRUE))
+
+ggplot(rose_df, aes(x = dir16, y = pct, fill = spd_bin)) +
+  geom_col(width = 1, color = "grey30") +
+  coord_polar(start = -pi/8 + pi/16, direction = -1) +  # N at top, clockwise, centered
+  labs(x = NULL, y = NULL)
+
+```
+
+```{r}
+rose_mean <- df_he %>%
+  filter(!is.na(regime), !is.na(Vindhastighet)) %>%
+  mutate(regime = factor(regime, levels = c("R1","R2","R3","R4"))) %>%
+  group_by(regime) %>%
+  summarise(mean_speed = mean(Vindhastighet), .groups = "drop")
+
+ggplot(rose_mean, aes(regime, mean_speed)) +
+  geom_col(width = 1, color = "black") +
+  coord_polar(start = pi/2, direction = -1) +
+  labs(x = NULL, y = "Mean Vindhastighet (m/s)",
+       title = "Helsingborg: mean wind speed by regime")
 
 ```
 

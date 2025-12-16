@@ -17,14 +17,22 @@ nidingen <- readr::read_csv("Data/nidingen.csv") %>%
 falsterbo <- readr::read_csv("Data/falsterbo.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
 
-## Hallands Väderö
-halland <- readr::read_csv("Data/halland.csv") %>%
-  mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
-
 ## Hörby
 hörby <- readr::read_csv("Data/hörby.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
 
-## Malmö
-malmö <- readr::read_csv("Data/malmö.csv") %>%
+## Skillinge
+skillinge <- readr::read_csv("Data/skillinge.csv") %>%
+  mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
+
+## Hästveda
+hästveda <- readr::read_csv("Data/hästveda.csv") %>%
+  mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
+
+## Ullared
+ullared <- readr::read_csv("Data/ullared.csv") %>%
+  mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
+
+## Ljungby
+ljungby <- readr::read_csv("Data/ljungby.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))
