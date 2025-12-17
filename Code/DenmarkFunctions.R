@@ -39,7 +39,6 @@ get_station_available_parameters <- function(station_id, limit = 1000, offset = 
 }
 
 
-
 get_observations_for_station <- function(
     station_id, 
     parameters, 

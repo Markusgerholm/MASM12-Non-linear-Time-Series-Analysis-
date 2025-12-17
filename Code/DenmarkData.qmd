@@ -23,15 +23,14 @@ print(params)
 
 ```
 
-```{R}
-
+```{r}
 
 # Get available parameters for the station
-params <- c("temp_mean_past1h","wind_dir_past1h","wind_speed_past1h")
+params <- c("temp_dry","wind_dir","wind_speed")
 
 # Set datetime range (ISO 8601 UTC)
-start_time <- "2024-01-01T00:00:00Z"
-end_time   <- "2025-12-13T00:00:00Z"
+start_time <- "2024-05-04T23:00:00Z"
+end_time   <- "2024-09-06T23:00:00Z"
 
 # Fetch observations
 observations <- get_observations_for_station(
@@ -39,56 +38,72 @@ observations <- get_observations_for_station(
   parameters = params,   # or subset of parameters
   start_dt   = start_time,
   end_dt     = end_time,
-  limit      = 1000
+  limit      = 20000
 )
 
+
+```
+
+```{r}
 head(observations)
+```
 
+downsample data
+
+```{r}
+full_seq <- seq(
+  from = min(observations$observed),
+  to   = max(observations$observed),
+  by   = "10 min"
+)
+
+# Find missing timestamps
+missing_times <- full_seq[!full_seq %in% observations$observed]
+
+# Summary
+length(missing_times)  # how many are missing
+missing_times           # which timestamps are missing
 ```
 
 ```{r}
-start <- 1
-end <- 3000
-df_den <- observations %>%
-  mutate(observed = as.POSIXct(observed, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
-df_den2425 <- df_den %>%
-  filter(
-    observed >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
-    observed <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
-  )
+# Ensure observed is POSIXct
+observations <- observations %>%
+  mutate(observed = as.POSIXct(observed, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")) %>%
+  arrange(observed)
 
-df_den2 <- df_den2425[start:end,]
+# Create a full 10-minute sequence as a data frame
+full_seq <- data.frame(observed = seq(
+  from = min(observations$observed),
+  to   = max(observations$observed),
+  by   = "10 min"
+))
+
+# Merge: observations must also be a data frame
+observations_df <- as.data.frame(observations)
+
+# Add missing rows as NA
+complete_obs <- full_seq %>%
+  left_join(observations_df, by = "observed") %>%
+  arrange(observed)
 ```
 
 ```{r}
-wind_regime <- function(wd) {
-  wd <- wd %% 360                      # wrap to [0,360)
-  out <- rep(NA_character_, length(wd))
+library(zoo)
 
-  out[wd >   0 & wd <=  90] <- "R1"
-  out[wd >  90 & wd <= 180] <- "R2"
-  out[wd > 180 & wd <= 270] <- "R3"
-  out[wd > 270 & wd <  360] <- "R4"
-  out[wd == 0]              <- "R4"    # 0 degrees treated as 360, so belongs to (270-360]
-
-  factor(out, levels = c("R1","R2","R3","R4"))
-}
+# Assume complete_obs has 'observed' and several parameter columns
+interpolated_obs <- complete_obs %>%
+  arrange(observed) %>%
+  mutate(across(
+    .cols = -observed,                # interpolate all columns except 'observed'
+    .fns  = ~ na.approx(., x = observed, na.rm = FALSE, maxgap = 6)  # only interpolate gaps <= 6 points (1 hour)
+  ))
 ```
 
 ```{r}
-regime <- wind_regime(df_he$Vindriktning)
-df_he$regime <- regime
-df_he_R <- filter(df_he, regime == "R3")
-
-# times where df_h is R1
-t_R <- df_he_R$ts_utc
-
-# keep those times in df_ä
-df_temp <- df_f
-df_x <- df_temp[df_temp$ts_utc %in% t_R, ]
-idx_missing <- which(is.na(df_x$Lufttemperatur))  # TRUE for NA and NaN
-
-#df_x[-idx_missing, ]
-#df_he_R[-idx_missing, ]
-mean(df_he_R$Vindhastighet)
+library(lubridate)
+hourly_dmi <- interpolated_obs %>%
+  # Round to nearest 10 minutes to correct minor misalignments
+  mutate(observed = round_date(observed, unit = "10 minutes")) %>%
+  # Keep only observations where minute = 0 (top of the hour)
+  filter(minute(observed) == 0)
 ```
