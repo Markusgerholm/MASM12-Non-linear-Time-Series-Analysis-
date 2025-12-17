@@ -38,11 +38,7 @@ get_station_available_parameters <- function(station_id, limit = 1000, offset = 
   unique(param_clean)
 }
 
-library(httr)
-library(jsonlite)
-library(dplyr)
-library(tidyr)
-library(purrr)
+
 
 get_observations_for_station <- function(
     station_id, 
