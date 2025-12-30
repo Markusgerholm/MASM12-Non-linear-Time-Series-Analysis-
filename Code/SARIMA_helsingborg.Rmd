@@ -4,8 +4,8 @@ output: html_document
 ---
 
 ## TO DO
-Kolla vindriktning säsongsvis från Helsingborg
-Hypotes: sällan vind norr ifrån ->
+
+Kolla vindriktning säsongsvis från Helsingborg Hypotes: sällan vind norr ifrån -\>
 
 ## Loading data
 
@@ -88,15 +88,15 @@ y <- zoo(df_he$Lufttemperatur, order.by = df_he$ts_utc)
 ## Fixing parameters
 
 ```{r}
-y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
-fixed = c(ar1 = 0, ar2 = NA, rep(0, 8), a11 = NA, ma1 = NA, sma1 = NA)
-fit <- Arima(y_ts,
+#y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
+#fixed = c(ar1 = 0, ar2 = NA, rep(0, 8), a11 = NA, ma1 = NA, sma1 = NA)
+#fit <- Arima(y_ts,
                  order = c(1,1,1),
                  fixed = fixed,
                  seasonal = c(0,1,1))   # SARIMA(0,0,0)(1,0,0)[24]
 
-coef(fit)   # shows the seasonal AR coefficient (lag 24)
-summary(fit)
+#coef(fit)   # shows the seasonal AR coefficient (lag 24)
+#summary(fit)
 ```
 
 ## Simple model SARIMA
@@ -110,6 +110,7 @@ fit <- Arima(y_ts,
 #coef(fit)   # shows the seasonal AR coefficient (lag 24)
 summary(fit)
 ```
+
 ## ACF/PACF
 
 ```{r}
@@ -152,7 +153,6 @@ df_he$regime <- wind_regime(df_he$Vindriktning, rot = 45)
 
 ```
 
-
 ```{r}
 plot_regime_compass <- function(rot = 0) {
   regimes <- data.frame(
@@ -180,7 +180,7 @@ plot_regime_compass <- function(rot = 0) {
   text(0,  1.1, "N"); text(1.1, 0, "E"); text(0, -1.1, "S"); text(-1.1, 0, "W")
 }
 
-plot_regime_compass(rot =0)
+plot_regime_compass(rot =45)
 
 ```
 
@@ -229,17 +229,113 @@ ggplot(rose_mean, aes(regime, mean_speed)) +
 
 ```
 
+## Add danish weather station
+
+```{r}
+setwd("..")
+source("Code/DenmarkFunctions.r")
+```
+
+```{r}
+#Can see locations of weather stations here https://www.dmi.dk/maalinger see DenmarkData file to search for station ids
+station_id = "06079" #Anholt maybe not that interesting?
+station_id <- "06041" #Skagen Fyr has >0.1 corss correlation in R4, but is very far away...
+station_id <- "06180" #copenhagen airport could be good?
+station_id <- "06049" #Gniben also potential good alternative for wind from the west
+station_id <- "06168" #Nakkehoved Fyr has some correlations in R3 for example
+station_id <- "06170" #Roskilde Lufthavn has a fair bit of correlation in general
+station_id <- "06073"#Sletterhage Fyr. Some lagged correlation in R2 and R3
+station_id <- "06120" #H.C Andersen Airport. Pretty strong lagged correlation in R3!
+
+# Get available parameters for the station
+params <- c("temp_dry","wind_dir","wind_speed")
+
+start_time <- format(as.POSIXct(df_he$ts_utc[1], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+end_time <- format(as.POSIXct(df_he$ts_utc[nrow(df_he)], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+
+# Fetch observations
+observations <- get_observations_for_station(
+  station_id = station_id,
+  parameters = params,   # or subset of parameters
+  start_dt   = start_time,
+  end_dt     = end_time,
+  limit      = 20000
+)
+```
+
+```{r}
+full_seq <- seq(
+  from = min(observations$observed),
+  to   = max(observations$observed),
+  by   = "10 min"
+)
+
+# Find missing timestamps
+missing_times <- full_seq[!full_seq %in% observations$observed]
+
+# Summary
+length(missing_times)  # how many are missing
+missing_times           # which timestamps are missing
+```
+
+```{r}
+# Ensure observed is POSIXct
+observations <- observations %>%
+  mutate(observed = as.POSIXct(observed, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")) %>%
+  arrange(observed)
+
+# Create a full 10-minute sequence as a data frame
+full_seq <- data.frame(observed = seq(
+  from = min(observations$observed),
+  to   = max(observations$observed),
+  by   = "10 min"
+))
+
+# Merge: observations must also be a data frame
+observations_df <- as.data.frame(observations)
+
+# Add missing rows as NA
+complete_obs <- full_seq %>%
+  left_join(observations_df, by = "observed") %>%
+  arrange(observed)
+```
+
+```{r}
+# Assume complete_obs has 'observed' and several parameter columns
+interpolated_obs <- complete_obs %>%
+  arrange(observed) %>%
+  mutate(across(
+    .cols = -observed,                # interpolate all columns except 'observed'
+    .fns  = ~ na.approx(., x = observed, na.rm = FALSE, maxgap = 6)  # only interpolate gaps <= 6 points (1 hour)
+  ))
+```
+
+```{r}
+library(lubridate)
+hourly_dmi <- interpolated_obs %>%
+  # Round to nearest 10 minutes to correct minor misalignments
+  mutate(observed = round_date(observed, unit = "10 minutes")) %>%
+  # Keep only observations where minute = 0 (top of the hour)
+  filter(minute(observed) == 0)
+
+#rename columns to match swedish data
+hourly_dmi <- hourly_dmi %>%
+  rename(Lufttemperatur = temp_dry, Vindriktning = wind_dir, Vindhastighet = wind_speed, ts_utc = observed)
+```
 
 ## Filtering based on regime
 
 ```{r}
-df_he_R <- filter(df_he, regime == "R2")
+df_he_R <- filter(df_he, regime == "R3")
 
 # times where df_h is R1<
 t_R <- df_he_R$ts_utc
 
 # keep those times in df_ä
-df_temp <- df_f
+#df_temp <- df_fa
+df_temp <- hourly_dmi 
 df_x <- df_temp[df_temp$ts_utc %in% t_R, ]
 
 #idx_missing <- which(is.na(df_x$Lufttemperatur))  # TRUE for NA and NaN
@@ -256,10 +352,13 @@ abline(h = 0)
 abline(h = c(-ci, ci), lty = 2)
 ```
 
-# R1: 
-# R2: 
+# R1:
+
+# R2:
+
 # R3:
-# R4: Falsterbo!
+
+# R4: Falsterbo! (Eller R2 med roterad regim?)
 
 ## CCF R3 Falsterbo
 
