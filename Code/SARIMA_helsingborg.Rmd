@@ -67,8 +67,8 @@ hästveda_2024_2025 <- hästveda %>%
 ## "Stationary" period
 
 ```{r}
-start <- 3000
-end <- 6000
+start <- 3200
+end <- 5900
 df_he <- helsingborg_2024_2025[start:end, ] # center
 df_ni <- nidingen_2024_2025[start:end, ] # north west
 df_fa <- falsterbo_2024_2025[start:end, ] # south
@@ -79,43 +79,69 @@ df_sk <- skillinge_2024_2025[start:end, ] # south west
 df_hö <- hörby_2024_2025[start:end, ] # east
 ```
 
-## Creating time series object
+## Training and testing split
 
 ```{r}
-y <- zoo(df_he$Lufttemperatur, order.by = df_he$ts_utc)
+h <- 500
+freq <- 24
+# full series from your dataframe
+y_all <- ts(helsingborg_2024_2025$Lufttemperatur, frequency = 24)
+
+# convert row indices to ts "time" values
+t_start <- 1 + (start - 1) / freq
+t_end   <- 1 + (end   - 1) / freq
+t_test_start <- 1 + (end) / freq          # row end + 1
+t_test_end   <- 1 + (end + h - 1) / freq  # row end + h
+
+# train/test as ts
+y_train <- window(y_all, start = t_start, end = t_end)
+y_test  <- window(y_all, start = t_test_start, end = t_test_end)
+
+# additional test set roughly 6 months forward in time
+
+gap <- 4000  
+
+t_test1_start <- t_test_start + gap / freq
+t_test1_end   <- t_test1_start + (h - 1) / freq
+
+y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
+
 ```
 
-## Fixing parameters
+## Plot of training data - looks reasonably stationary
 
 ```{r}
-#y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
-#fixed = c(ar1 = 0, ar2 = NA, rep(0, 8), a11 = NA, ma1 = NA, sma1 = NA)
-#fit <- Arima(y_ts,
-                 order = c(1,1,1),
-                 fixed = fixed,
-                 seasonal = c(0,1,1))   # SARIMA(0,0,0)(1,0,0)[24]
-
-#coef(fit)   # shows the seasonal AR coefficient (lag 24)
-#summary(fit)
+plot(y_train)
 ```
 
-## Simple model SARIMA
+## Fixed and non-fixed parameters in p/q polynomials
 
 ```{r}
-y_ts <- ts(df_he$Lufttemperatur, frequency = 24)
-fit <- Arima(y_ts,
-                 order = c(1,0,0),
-                 seasonal = c(0,1,1))   # SARIMA(0,0,0)(1,0,0)[24]
+p <- rep(0, 18)
+p[1] <- NA
+p[2] <- NA
+p[11] <- 0
+p[18] <- NA
 
-#coef(fit)   # shows the seasonal AR coefficient (lag 24)
+q <- rep(0, 23)
+q[2] <- NA
+q[20] <- NA
+q[23] <- NA
+```
+
+## Seasonal ARIMA model:
+
+```{r}
+fit <- Arima(y_train,
+                 order = c(18,0,23),
+                fixed = c(p,q,NA),
+                 seasonal = c(0,1,1))
 summary(fit)
 ```
 
-## ACF/PACF
+## ACF/PACF of model's residuals
 
 ```{r}
-#acf(fit_a24$residuals, lag.max = 30)
-
 r <-  acf(as.numeric(fit$residuals), lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
 r$acf[1] <- NA
 plot(r, main = "ACF", xaxt = "n")
@@ -124,6 +150,83 @@ pacf(as.numeric(fit$residuals), lag.max = 50, na.action = na.omit, xaxt = "n", m
 axis(1, at = 0:100, labels = 0:100)   # label every lag
 
 ```
+
+## Plotting fitted values against observed values
+
+```{r}
+autoplot(y_train, series = "Observed") +
+  autolayer(fitted(fit), series = "Fitted") +
+  labs(title = "Observed vs fitted", x = "Time", y = NULL)
+```
+
+## Plotting k-step predictions on first test data
+
+```{r}
+# Apply the SAME fitted model to (train+test) WITHOUT re-estimation
+y_train_test <- window(y_all, start = t_start, end = t_test_end)
+refit <- Arima(y_train_test, model = fit)   # parameters held fixed
+
+# k-step-ahead predictions for the test period (rolling, no refit)
+k <- 24
+h <- length(y_test)
+
+k_step_vals <- numeric(h - k)
+
+for (i in 1:(h - k)) {
+  t_origin <- 1 + (end + i - 1) / frequency(y_all)  # row end+i (includes y_test[i])
+  y_up_to  <- window(y_all, start = t_start, end = t_origin)
+  refit_i  <- Arima(y_up_to, model = fit)           # update state only
+  k_step_vals[i] <- forecast(refit_i, h = k)$mean[k]
+}
+
+k_step_test <- ts(k_step_vals,
+                  start = time(y_test)[k + 1],
+                  frequency = frequency(y_test))
+
+# Plot: actual test vs k-step-ahead preds (aligned)
+ts.plot(window(y_test, start = time(y_test)[k + 1]), k_step_test,
+        col = c("blue", "red"), lwd = c(1,1),
+        main = paste0("Test actuals vs ", k, "-step-ahead predictions (no refit)"),
+        ylab = "Temperature", xlab = "Time")
+legend("topleft", legend = c("Test actuals", paste0(k, "-step ahead")),
+       col = c("blue", "red"), lwd = c(2,2), bty = "n")
+```
+
+## Plotting k-step predictions on second test data
+
+```{r}
+# Apply the SAME fitted model to (train+test1) WITHOUT re-estimation
+y_train_test1 <- window(y_all, start = t_start, end = t_test1_end)
+refit <- Arima(y_train_test1, model = fit)   # parameters held fixed
+
+# k-step-ahead predictions for the test1 period (rolling, no refit)
+k <- 24
+h <- length(y_test1)
+
+k_step_vals <- numeric(h - k)
+test1_start_idx <- as.integer( round((t_test1_start - 1) * frequency(y_all)) ) + 1
+
+for (i in 1:(h - k)) {
+  t_origin <- 1 + (test1_start_idx + i - 1) / frequency(y_all)  # includes y_test1[i]
+  y_up_to  <- window(y_all, start = t_start, end = t_origin)
+  refit_i  <- Arima(y_up_to, model = fit)           # update state only
+  k_step_vals[i] <- forecast(refit_i, h = k)$mean[k]
+}
+
+k_step_test1 <- ts(k_step_vals,
+                   start = time(y_test1)[k + 1],
+                   frequency = frequency(y_test1))
+
+# Plot: actual test1 vs k-step-ahead preds (aligned)
+ts.plot(window(y_test1, start = time(y_test1)[k + 1]), k_step_test1,
+        col = c("blue", "red"), lwd = c(1,1),
+        main = paste0("Test1 actuals vs ", k, "-step-ahead predictions (no refit)"),
+        ylab = "Temperature", xlab = "Time")
+legend("topleft", legend = c("Test1 actuals", paste0(k, "-step ahead")),
+       col = c("blue", "red"), lwd = c(2,2), bty = "n")
+
+```
+
 
 ## Adding residuals to df
 
