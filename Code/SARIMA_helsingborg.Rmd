@@ -287,12 +287,16 @@ plot_regime_compass(rot =45)
 ```
 
 ```{r}
+# 16 compass directions
 labels16 <- c("N","NNE","NE","ENE","E","ESE","SE","SSE",
               "S","SSW","SW","WSW","W","WNW","NW","NNW")
-# speed bins similar to your example (m/s)
+
+# wind speed bins
 spd_breaks <- c(0,2,4,6,8,10,12,14,16,18,20,Inf)
 spd_labels <- c("0–2","2–4","4–6","6–8","8–10","10–12",
                 "12–14","14–16","16–18","18–20","20+")
+
+# prepare data
 rose_df <- df_he %>%
   filter(!is.na(Vindriktning), !is.na(Vindhastighet)) %>%
   mutate(
@@ -304,30 +308,35 @@ rose_df <- df_he %>%
                   include.lowest = TRUE, right = FALSE)
   ) %>%
   count(dir16, spd_bin) %>%
-  mutate(pct = 100 * n / sum(n)) 
+  mutate(pct = 100 * n / sum(n))
 
-rose_df <- rose_df %>%
-  mutate(dir16 = factor(dir16, levels = labels16, ordered = TRUE))
-
+# plot with original color theme (no theme_minimal)
 ggplot(rose_df, aes(x = dir16, y = pct, fill = spd_bin)) +
   geom_col(width = 1, color = "grey30") +
-  coord_polar(start = -pi/8 + pi/16, direction = -1) +  # N at top, clockwise, centered
-  labs(x = NULL, y = NULL)
+  coord_polar(start = -pi/16, direction = 1) +  # North at top, clockwise
+  labs(x = NULL, y = NULL, fill = "Wind speed (m/s)") 
 
 ```
 
 ```{r}
+library(dplyr)
+library(ggplot2)
+
+# compute mean wind speed per regime
 rose_mean <- df_he %>%
   filter(!is.na(regime), !is.na(Vindhastighet)) %>%
   mutate(regime = factor(regime, levels = c("R1","R2","R3","R4"))) %>%
   group_by(regime) %>%
   summarise(mean_speed = mean(Vindhastighet), .groups = "drop")
 
-ggplot(rose_mean, aes(regime, mean_speed)) +
+# polar plot with 45-degree rotation
+# each bar represents a regime sector rotated by 45 degrees
+ggplot(rose_mean, aes(x = regime, y = mean_speed)) +
   geom_col(width = 1, color = "black") +
-  coord_polar(start = pi/2, direction = -1) +
+  coord_polar(start = pi/4, direction = -1) +  # rotate 45 degrees clockwise
   labs(x = NULL, y = "Mean Vindhastighet (m/s)",
-       title = "Helsingborg: mean wind speed by regime")
+       title = "Helsingborg: mean wind speed by regime (rotated 45°)")
+
 
 ```
 
@@ -345,10 +354,10 @@ station_id <- "06041" #Skagen Fyr has >0.1 corss correlation in R4, but is very 
 station_id <- "06180" #copenhagen airport could be good?
 station_id <- "06049" #Gniben also potential good alternative for wind from the west
 station_id <- "06168" #Nakkehoved Fyr has some correlations in R3 for example
-station_id <- "06170" #Roskilde Lufthavn has a fair bit of correlation in general
-station_id <- "06073"#Sletterhage Fyr. Some lagged correlation in R2 and R3
-station_id <- "06120" #H.C Andersen Airport. Pretty strong lagged correlation in R3!
-
+station_id <- "06170" #Roskilde Lufthavn has very strong autocorrelation in general. Not just in certain regimes. May be too close?
+station_id <- "06073"#Sletterhage Fyr.
+station_id <- "06120" #H.C Andersen Airport. Has lagged correlation
+station_id <- "06149"
 # Get available parameters for the station
 params <- c("temp_dry","wind_dir","wind_speed")
 
@@ -387,15 +396,56 @@ missing_times           # which timestamps are missing
 hourly_dmi <- process_hourly_data(observations)
 ```
 
-```{#rename columns to match swedish data}
+```{r}
+
+#rename columns to match swedish data
 hourly_dmi <- hourly_dmi %>%
   rename(Lufttemperatur = temp_dry, Vindriktning = wind_dir, Vindhastighet = wind_speed, ts_utc = observed)
+```
+
+```{r}
+fit_x <- auto.arima(hourly_dmi$Lufttemperatur)
+innov_x <- residuals(fit_x)
+hourly_dmi$res <- innov_x
+```
+
+```{r}
+#ccf without regime filtering
+ccf(as.numeric(hourly_dmi$res),as.numeric(df_he$res), lag.max = 48,na.action = na.pass)
+```
+
+```{r}
+df_he_R <- filter(df_he, regime == "R4")
+
+# times where Helsingborg is in R1
+t_R <- df_he_R$ts_utc
+
+# align other station to same times
+df_x <- hourly_dmi[hourly_dmi$ts_utc %in% t_R, ]
+
+# CCF: station -> Helsingborg
+r <- ccf(df_x$res, df_he_R$res,
+         lag.max = 50, na.action = na.pass, plot = FALSE)
+
+pos <- r$lag >= 0
+
+n <- sum(complete.cases(df_x$res, df_he_R$res))
+ci <- 1.96 / sqrt(n)
+
+plot(r$lag[pos], r$acf[pos], type = "h",
+     xlab = "Lag",
+     ylab = "CCF",
+     main = "CCF")
+
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
+
 ```
 
 ## Filtering based on regime
 
 ```{r}
-df_he_R <- filter(df_he, regime == "R3")
+df_he_R <- filter(df_he, regime == "R4")
 
 # times where df_h is R1<
 t_R <- df_he_R$ts_utc
@@ -407,7 +457,7 @@ df_x <- df_temp[df_temp$ts_utc %in% t_R, ]
 
 #idx_missing <- which(is.na(df_x$Lufttemperatur))  # TRUE for NA and NaN
 
-r = ccf(df_he_R$res, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass, plot = FALSE)
+r = ccf(df_x$res, df_he_R$res, lag.max = 50, na.action = na.pass, plot = FALSE)
 pos <- r$lag >= 0
 
 n <- sum(complete.cases(df_he_R$res, df_x$Lufttemperatur))
