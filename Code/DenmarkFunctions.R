@@ -4,6 +4,8 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 library(purrr)
+library(zoo)
+library(lubridate)
 
 get_stations <- function(limit = 1000, offset = 0) {
   stations_url <- "https://opendataapi.dmi.dk/v2/metObs/collections/station/items"
@@ -96,4 +98,43 @@ get_observations_for_station <- function(
   }
   
   return(tidy_obs)
+}
+
+process_hourly_data <- function(observations, 
+                                time_col = "observed", 
+                                max_gap = 6) {
+  
+  # Ensure time column is POSIXct
+  observations <- observations %>%
+    mutate(across(all_of(time_col), ~ as.POSIXct(.x, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))) %>%
+    arrange(.data[[time_col]])
+  
+  # Create full 10-minute sequence
+  full_seq <- data.frame(observed = seq(
+    from = min(observations[[time_col]]),
+    to   = max(observations[[time_col]]),
+    by   = "10 min"
+  ))
+  
+  # Merge and fill missing rows as NA
+  complete_obs <- full_seq %>%
+    left_join(as.data.frame(observations), by = setNames("observed", time_col)) %>%
+    arrange(observed)
+  
+  # Interpolate all numeric columns except time
+  numeric_cols <- names(complete_obs)[sapply(complete_obs, is.numeric)]
+  
+  interpolated_obs <- complete_obs %>%
+    arrange(observed) %>%
+    mutate(across(
+      all_of(numeric_cols),
+      ~ na.approx(., x = observed, na.rm = FALSE, maxgap = max_gap)
+    ))
+  
+  # Aggregate to hourly
+  hourly_data <- interpolated_obs %>%
+    mutate(observed = round_date(observed, unit = "10 minutes")) %>%
+    filter(minute(observed) == 0)
+  
+  return(hourly_data)
 }
