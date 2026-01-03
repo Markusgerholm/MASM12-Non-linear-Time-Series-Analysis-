@@ -227,7 +227,6 @@ legend("topleft", legend = c("Test1 actuals", paste0(k, "-step ahead")),
 
 ```
 
-
 ## Adding residuals to df
 
 ```{r}
@@ -384,46 +383,11 @@ missing_times           # which timestamps are missing
 ```
 
 ```{r}
-# Ensure observed is POSIXct
-observations <- observations %>%
-  mutate(observed = as.POSIXct(observed, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")) %>%
-  arrange(observed)
-
-# Create a full 10-minute sequence as a data frame
-full_seq <- data.frame(observed = seq(
-  from = min(observations$observed),
-  to   = max(observations$observed),
-  by   = "10 min"
-))
-
-# Merge: observations must also be a data frame
-observations_df <- as.data.frame(observations)
-
-# Add missing rows as NA
-complete_obs <- full_seq %>%
-  left_join(observations_df, by = "observed") %>%
-  arrange(observed)
+#process data so it is hourly
+hourly_dmi <- process_hourly_data(observations)
 ```
 
-```{r}
-# Assume complete_obs has 'observed' and several parameter columns
-interpolated_obs <- complete_obs %>%
-  arrange(observed) %>%
-  mutate(across(
-    .cols = -observed,                # interpolate all columns except 'observed'
-    .fns  = ~ na.approx(., x = observed, na.rm = FALSE, maxgap = 6)  # only interpolate gaps <= 6 points (1 hour)
-  ))
-```
-
-```{r}
-library(lubridate)
-hourly_dmi <- interpolated_obs %>%
-  # Round to nearest 10 minutes to correct minor misalignments
-  mutate(observed = round_date(observed, unit = "10 minutes")) %>%
-  # Keep only observations where minute = 0 (top of the hour)
-  filter(minute(observed) == 0)
-
-#rename columns to match swedish data
+```{#rename columns to match swedish data}
 hourly_dmi <- hourly_dmi %>%
   rename(Lufttemperatur = temp_dry, Vindriktning = wind_dir, Vindhastighet = wind_speed, ts_utc = observed)
 ```
