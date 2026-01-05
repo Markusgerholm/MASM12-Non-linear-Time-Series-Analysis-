@@ -235,9 +235,10 @@ df_he$res <- fit$residuals
 
 ## Checking where wind comes from
 
-## Regimes for wind direction
+## Regimes for wind direction:
 
 ```{r}
+## CURENNTLY INSTANCES WITH 0 WIND ARE COUNTED AS NORTH. NEED TO BE FIXED!!
 wind_regime <- function(wd, rot = 45) {
   wd <- (wd - rot) %% 360   # rotate regimes clockwise by rot degrees
   out <- rep(NA_character_, length(wd))
@@ -333,9 +334,12 @@ rose_mean <- df_he %>%
 # each bar represents a regime sector rotated by 45 degrees
 ggplot(rose_mean, aes(x = regime, y = mean_speed)) +
   geom_col(width = 1, color = "black") +
-  coord_polar(start = pi/4, direction = -1) +  # rotate 45 degrees clockwise
-  labs(x = NULL, y = "Mean Vindhastighet (m/s)",
-       title = "Helsingborg: mean wind speed by regime (rotated 45°)")
+  coord_polar(start = pi/4, direction = 1) +  # ✅ change -1 → 1 for clockwise
+  labs(
+    x = NULL,
+    y = "Mean Vindhastighet (m/s)",
+    title = "Helsingborg: mean wind speed by regime (rotated 45°)"
+  )
 
 
 ```
@@ -357,7 +361,6 @@ station_id <- "06168" #Nakkehoved Fyr has some correlations in R3 for example
 station_id <- "06170" #Roskilde Lufthavn has very strong autocorrelation in general. Not just in certain regimes. May be too close?
 station_id <- "06073"#Sletterhage Fyr.
 station_id <- "06120" #H.C Andersen Airport. Has lagged correlation
-station_id <- "06149"
 # Get available parameters for the station
 params <- c("temp_dry","wind_dir","wind_speed")
 
@@ -439,10 +442,145 @@ plot(r$lag[pos], r$acf[pos], type = "h",
 
 abline(h = 0)
 abline(h = c(-ci, ci), lty = 2)
+```
+
+```{r}
+df_he_R <- filter(df_he, regime == "R4")
+
+# times where Helsingborg is in R1
+t_R <- df_he_R$ts_utc
+
+df_x <- df_ul
+
+fit_x <- auto.arima(df_x$Lufttemperatur)
+innov_x <- residuals(fit_x)
+df_x$res <- innov_x
+
+# align other station to same times
+df_x <- df_x[df_x$ts_utc %in% t_R, ]
+
+# CCF: station -> Helsingborg
+r <- ccf(df_x$res, df_he_R$res,
+         lag.max = 50, na.action = na.pass, plot = FALSE)
+
+pos <- r$lag >= 0
+
+n <- sum(complete.cases(df_x$res, df_he_R$res))
+ci <- 1.96 / sqrt(n)
+
+plot(r$lag[pos], r$acf[pos], type = "h",
+     xlab = "Lag",
+     ylab = "CCF",
+     main = "CCF")
+
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
 
 ```
 
 ## Filtering based on regime
+
+```{r}
+plot_ccf_with_prewhitened_station <- function(df_he,
+                                              df_x,
+                                              regimes = c("R1", "R2", "R3", "R4"),
+                                              time_col = "ts_utc",
+                                              value_col = "Lufttemperatur",
+                                              lag_max = 50) {
+  
+  library(dplyr)
+  library(forecast)
+  
+  ## -----------------------------
+  ## Prewhiten station (once)
+  ## -----------------------------
+  fit_x <- auto.arima(df_x[[value_col]])
+  df_x$res <- residuals(fit_x)  # keep as ts
+  
+  ## -----------------------------
+  ## Loop over regimes → separate plots
+  ## -----------------------------
+  for (reg in regimes) {
+    
+    df_he_R <- df_he %>% filter(regime == !!reg)
+    t_R <- df_he_R[[time_col]]
+    
+    # Align station to regime times
+    df_x_R <- df_x[df_x[[time_col]] %in% t_R, ]
+    
+    r <- ccf(df_x_R$res,
+             df_he_R$res,
+             lag.max = lag_max,
+             na.action = na.pass,
+             plot = FALSE)
+    
+    pos <- r$lag >= 0
+    n <- sum(complete.cases(df_x_R$res, df_he_R$res))
+    ci <- 1.96 / sqrt(n)
+    
+    plot(r$lag[pos], r$acf[pos], type = "h",
+         xlab = "Lag",
+         ylab = "CCF",
+         main = paste("CCF –", reg, "(station prewhitened)"))
+    
+    abline(h = 0)
+    abline(h = c(-ci, ci), lty = 2)
+  }
+}
+
+```
+
+### Ullared
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ul
+)
+
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_hä
+)
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_hö
+)
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_lj
+)
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ni
+)
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_sk
+)
+```
+
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_hö
+)
+```
 
 ```{r}
 df_he_R <- filter(df_he, regime == "R4")
@@ -469,13 +607,15 @@ abline(h = 0)
 abline(h = c(-ci, ci), lty = 2)
 ```
 
-# R1:
+# R1: East: Hästveda?
 
 # R2:
 
 # R3:
 
-# R4: Falsterbo! (Eller R2 med roterad regim?)
+# R4: North
+
+Note: Many stations seem to have high correlations at R4. R4 has low wind speed and is very limited in terms of the wind directions
 
 ## CCF R3 Falsterbo
 
