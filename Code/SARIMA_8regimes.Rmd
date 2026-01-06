@@ -15,6 +15,7 @@ plot_ccf_with_prewhitened_station <- function(df_he,
   library(dplyr)
   library(forecast)
   
+  x_name <- deparse(substitute(df_x))
   ## -----------------------------
   ## Prewhiten station (once)
   ## -----------------------------
@@ -45,7 +46,7 @@ plot_ccf_with_prewhitened_station <- function(df_he,
     plot(r$lag[pos], r$acf[pos], type = "h",
          xlab = "Lag",
          ylab = "CCF",
-         main = paste("CCF –", reg, "(station prewhitened)"))
+         main = paste("CCF –", reg, "(", x_name, " prewhitened)"))
     
     abline(h = 0)
     abline(h = c(-ci, ci), lty = 2)
@@ -187,7 +188,24 @@ df_he$res <- fit$residuals
 ## 8 wind regimes
 
 ```{r}
-wind_regime <- function(wd, ws, rot = 45) {
+wind_regime4 <- function(wd, ws, rot = 45) {
+  wd <- (wd - rot) %% 360
+  out <- rep(NA_character_, length(wd))
+
+  # Only assign R1–R4 when wind speed is not zero, when zero, set regime to R5
+  idx <- !is.na(ws) & ws != 0 & !is.na(wd)
+ 
+  out[!is.na(ws) & ws == 0] <- "R0"
+  out[idx & wd >   0 & wd <=  90] <- "R1"
+  out[idx & wd >  90 & wd <= 180] <- "R2"
+  out[idx & wd > 180 & wd <= 270] <- "R3"
+  out[idx & wd > 270 & wd <  360] <- "R4"
+  out[idx & wd == 0]              <- "R4"
+
+  factor(out, levels = c("R0","R1","R2","R3","R4"))
+
+}
+wind_regime8 <- function(wd, ws, rot = 45) {
   wd <- (wd - rot) %% 360
   out <- rep(NA_character_, length(wd))
 
@@ -206,10 +224,9 @@ wind_regime <- function(wd, ws, rot = 45) {
   out[idx & wd == 0]              <- "R8"
 
   factor(out, levels = c("R0","R1","R2", "R3","R4","R5", "R6", "R7", "R8"))
-
 }
 
-df_he$regime <- wind_regime(df_he$Vindriktning, df_he$Vindhastighet, rot = 45)
+df_he$regime <- wind_regime4(df_he$Vindriktning, df_he$Vindhastighet, rot = 45)
 ```
 
 ## Add danish weather station
@@ -293,121 +310,316 @@ table(df_he$regime, useNA = "ifany")
 
 
 ### R1
-## Hästveda
+## Hästveda & Hörby
 ```{r}
+par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
   df_x  = df_hä,
   regimes = "R1"
 )
-```
-
-### R2
-## Hörby
-```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
   df_x  = df_hö,
+  regimes = "R1"
+)
+```
+### R2
+## Skillinge & Falterbo
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_sk,
+  regimes = "R2"
+)
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_fa,
+  regimes = "R2"
+)
+```
+## Köbenhavn lufthavn & Roskilde lufthavn
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_kb,
+  regimes = "R2"
+)
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ro,
   regimes = "R2"
 )
 ```
 
 ### R3
-## Skillinge
+## Roskilde lufthavn & Gniben
 ```{r}
+par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
-  df_x  = df_sk,
+  df_x  = df_ro,
+  regimes = "R3"
+)
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_gn,
+  regimes = "R3"
+)
+```
+## Sletterhage fyr & Anholt
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_sl,
+  regimes = "R3"
+)
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_an,
   regimes = "R3"
 )
 ```
 
 ### R4
-## Falsterbo
+## Nidingen & Ullared
 ```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_fa,
-  regimes = "R4"
-)
-```
-## Köbenhavn lufthavn
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_kb,
-  regimes = "R4"
-)
-```
-## Roskilde Lufthavn
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_ro,
-  regimes = "R4"
-)
-```
-
-### R5
-## Roskilde lufthavn
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_ro,
-  regimes = "R5"
-)
-```
-## Gniben
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_gn,
-  regimes = "R5"
-)
-```
-## Sletterhage fyr
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_sl,
-  regimes = "R5"
-)
-```
-
-### R6
-## Anholt
-```{r}
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_an,
-  regimes = "R6"
-)
-```
-
-### R7
-## Nidingen
-```{r}
+par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
   df_x  = df_ni,
-  regimes = "R7"
+  regimes = "R4"
 )
-```
-## Ullared
-```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
   df_x  = df_ul,
-  regimes = "R7"
+  regimes = "R4"
 )
 ```
-
-### R8
 ##Ljungby
 ```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
   df_x  = df_lj,
-  regimes = "R8"
+  regimes = "R4"
 )
 ```
+## Evaluating stations in R3
+```{r}
+stations <- list(
+  ro = df_ro,
+  gn = df_gn,
+  sl = df_sl,
+  an = df_an
+)
+
+```
+
+## Function for obtaining positive lags greater than upper CI
+
+```{r}
+# Prewhiten x on the FULL x-series (once)
+prewhiten_station <- function(df_x, value_col = "Lufttemperatur") {
+  fit_x <- auto.arima(df_x[[value_col]])
+  df_x$res_x <- residuals(fit_x)
+  df_x
+}
+
+# Then extract significant positive lags within a regime
+get_ccf_lags <- function(df_he, df_x_pw, reg,
+                         time_col = "ts_utc",
+                         lag_max = 50,
+                         top_k = 3) {
+
+  he_R <- df_he %>% filter(regime == reg) %>% arrange(.data[[time_col]])
+  t_R  <- he_R[[time_col]]
+
+  x_R  <- df_x_pw %>% filter(.data[[time_col]] %in% t_R) %>% arrange(.data[[time_col]])
+
+  xw <- x_R$res_x
+  yw <- he_R$res  # your prewhitened Helsingborg residuals
+
+  r <- ccf(xw, yw, lag.max = lag_max, plot = FALSE, na.action = na.pass)
+
+  pos <- which(r$lag >= 0)
+  n   <- sum(complete.cases(xw, yw))
+  ci  <- 1.96 / sqrt(n)
+
+  sig_idx <- pos[abs(r$acf[pos]) > ci]
+  sig_lags <- as.integer(r$lag[sig_idx])
+  if (length(sig_lags) == 0) return(integer(0))
+
+  ord <- order(abs(r$acf[sig_idx]), decreasing = TRUE)
+  sig_lags[ord][seq_len(min(top_k, length(sig_lags)))]
+}
+
+```
+
+## See which lags are significant
+
+```{r}
+df_ro_pw <- prewhiten_station(df_ro)
+lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3)
+lags_ro_R3
+```
+
+## Function for lagging x based on top 3 significant lags
+```{r}
+make_lagged_xreg <- function(x, lags) {
+  # x: numeric vector
+  # lags: integer vector of nonnegative lags
+  X <- sapply(lags, function(L) dplyr::lag(x, L))
+  colnames(X) <- paste0("x_L", lags)
+  as.matrix(X)
+}
+```
+
+## Function for rmse and rolling prediction
+
+```{r}
+rmse <- function(e) sqrt(mean(e^2, na.rm = TRUE))
+
+score_arimax_fixed <- function(y, X = NULL, initial = 200) {
+  n <- length(y)
+  if (n <= initial + 1) return(NA_real_)
+
+  # Fit ONCE on the initial window
+  if (is.null(X)) {
+    fit0 <- forecast::auto.arima(y[1:initial])
+  } else {
+    X0 <- X[1:initial, , drop = FALSE]
+    fit0 <- forecast::auto.arima(y[1:initial], xreg = X0)
+  }
+
+  errs <- numeric(0)
+
+  # Roll forward, but DO NOT refit; reuse fit0 parameters via model=
+  for (t in initial:(n - 1)) {
+    y_train <- y[1:t]
+    y_test  <- y[t + 1]
+
+    if (is.null(X)) {
+      # apply same model structure/params to expanded data without re-estimation
+      fit_t <- forecast::Arima(y_train, model = fit0)
+      fc <- forecast::forecast(fit_t, h = 1)$mean[1]
+    } else {
+      X_train <- X[1:t, , drop = FALSE]
+      X_test  <- X[t + 1, , drop = FALSE]
+
+      fit_t <- forecast::Arima(y_train, xreg = X_train, model = fit0)
+      fc <- forecast::forecast(fit_t, xreg = X_test, h = 1)$mean[1]
+    }
+
+    errs <- c(errs, y_test - fc)
+  }
+
+  rmse(errs)
+}
+
+```
+
+## Function for ranking stations
+
+```{r}
+rank_stations_by_ccf_lags <- function(df_he, station_list, reg,
+                                      time_col = "ts_utc",
+                                      value_col = "Lufttemperatur",
+                                      lag_max = 50,
+                                      top_k = 3,
+                                      initial = 200) {
+
+  # regime slice (y)
+  he_R <- df_he %>% filter(regime == reg) %>% arrange(.data[[time_col]])
+  y <- he_R[[value_col]]
+
+  # baseline CV
+  base <- score_arimax_rolling(y, X = NULL, initial = initial)
+
+  res <- lapply(names(station_list), function(nm) {
+    df_x <- station_list[[nm]]
+
+    # Align on timestamps for this regime
+    t_R <- he_R[[time_col]]
+    x_R <- df_x %>% filter(.data[[time_col]] %in% t_R) %>% arrange(.data[[time_col]])
+
+    # Need same length after alignment
+    xy <- inner_join(
+      he_R %>% select(ts = all_of(time_col), y = all_of(value_col)),
+      x_R  %>% select(ts = all_of(time_col), x = all_of(value_col)),
+      by = "ts"
+    ) %>% tidyr::drop_na(y, x)
+
+    if (nrow(xy) <= initial + 5) {
+      return(data.frame(station = nm, n = nrow(xy),
+                        lags = NA_character_, rmse_base = base,
+                        rmse_arimax = NA_real_, improvement = NA_real_))
+    }
+
+    # get lags using prewhitened CCF (uses df_he$res)
+    lags <- get_ccf_lags(df_he = df_he, df_x_pw = df_x, reg = reg,
+                         time_col = time_col,
+                         lag_max = lag_max, top_k = top_k)
+
+    if (length(lags) == 0) {
+      return(data.frame(station = nm, n = nrow(xy),
+                        lags = "none", rmse_base = base,
+                        rmse_arimax = NA_real_, improvement = NA_real_))
+    }
+
+    X <- make_lagged_xreg(xy$x, lags)
+
+    # drop rows made NA by lagging
+    keep <- complete.cases(xy$y, X)
+    y2 <- xy$y[keep]
+    X2 <- X[keep, , drop = FALSE]
+
+    r <- score_arimax_fixed(y2, X = X2, initial = min(initial, length(y2) - 2))
+
+    data.frame(
+      station = nm,
+      n = length(y2),
+      lags = paste(lags, collapse = ","),
+      rmse_base = base,
+      rmse_arimax = r,
+      improvement = base - r
+    )
+  })
+
+  bind_rows(res) %>% arrange(desc(improvement))
+}
+```
+
+## Prewhitening and adding to list
+
+```{r}
+df_ro_pw <- prewhiten_station(df_ro)
+df_gn_pw <- prewhiten_station(df_gn)
+df_sl_pw <- prewhiten_station(df_sl)
+df_an_pw <- prewhiten_station(df_an)
+
+stations_R3 <- list(
+  ro = df_ro_pw,
+  gn = df_gn_pw,
+  sl = df_sl_pw,
+  an = df_an_pw
+)
+```
+
+## Fitting models on first 2000 observations and then computing RMSE for ARIMA and ARIMAX with each station
+# OBS: is ARIMA fitted on more data than ARIMAX? Check code so that it is a fair comparison
+
+```{r}
+rank_R3 <- rank_stations_by_ccf_lags(df_he, stations_R3, reg = "R3",
+                                     lag_max = 50, top_k = 3, initial = 500)
+rank_R3
+```
+
+```{r}
+rank_R3 <- rank_stations_by_ccf_lags(df_he, stations_R3, reg = "R3",
+                                     lag_max = 50, top_k = 3, initial = 700)
+rank_R3
+```
+
