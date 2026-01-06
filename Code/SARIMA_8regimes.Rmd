@@ -1,0 +1,413 @@
+---
+title: "SARIMA_8regimes"
+output: html_document
+---
+## Function for filtering based on regime
+
+```{r}
+plot_ccf_with_prewhitened_station <- function(df_he,
+                                              df_x,
+                                              regimes = c("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"),
+                                              time_col = "ts_utc",
+                                              value_col = "Lufttemperatur",
+                                              lag_max = 50) {
+  
+  library(dplyr)
+  library(forecast)
+  
+  ## -----------------------------
+  ## Prewhiten station (once)
+  ## -----------------------------
+  fit_x <- auto.arima(df_x[[value_col]])
+  df_x$res <- residuals(fit_x)  # keep as ts
+  
+  ## -----------------------------
+  ## Loop over regimes → separate plots
+  ## -----------------------------
+  for (reg in regimes) {
+    
+    df_he_R <- df_he %>% filter(regime == !!reg)
+    t_R <- df_he_R[[time_col]]
+    
+    # Align station to regime times
+    df_x_R <- df_x[df_x[[time_col]] %in% t_R, ]
+    
+    r <- ccf(df_x_R$res,
+             df_he_R$res,
+             lag.max = lag_max,
+             na.action = na.pass,
+             plot = FALSE)
+    
+    pos <- r$lag >= 0
+    n <- sum(complete.cases(df_x_R$res, df_he_R$res))
+    ci <- 1.96 / sqrt(n)
+    
+    plot(r$lag[pos], r$acf[pos], type = "h",
+         xlab = "Lag",
+         ylab = "CCF",
+         main = paste("CCF –", reg, "(station prewhitened)"))
+    
+    abline(h = 0)
+    abline(h = c(-ci, ci), lty = 2)
+  }
+}
+
+```
+## Loading data
+
+```{r}
+setwd("..")
+source("Code/read_data.r")
+```
+
+```{r}
+library(zoo)
+library(forecast)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+helsingborg_2024_2025 <- helsingborg %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+nidingen_2024_2025 <- nidingen %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+hörby_2024_2025 <- hörby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+falsterbo_2024_2025 <- falsterbo %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+skillinge_2024_2025 <- skillinge %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+ullared_2024_2025 <- ullared %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+ljungby_2024_2025 <- ljungby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+hästveda_2024_2025 <- hästveda %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2025-08-31 23:59:59", tz = "UTC")
+  )
+```
+
+## "Stationary" period
+
+```{r}
+start <- 3200
+end <- 5900
+df_he <- helsingborg_2024_2025[start:end, ] # center
+df_ni <- nidingen_2024_2025[start:end, ] # north west
+df_fa <- falsterbo_2024_2025[start:end, ] # south
+df_hä <- hästveda_2024_2025[start:end, ] # east north east
+df_lj <- ljungby_2024_2025[start:end, ] # north east
+df_ul <- ullared_2024_2025[start:end, ] # north
+df_sk <- skillinge_2024_2025[start:end, ] # south east
+df_hö <- hörby_2024_2025[start:end, ] # east
+```
+
+## Training and testing split
+
+```{r}
+h <- 500
+freq <- 24
+# full series from your dataframe
+y_all <- ts(helsingborg_2024_2025$Lufttemperatur, frequency = 24)
+
+# convert row indices to ts "time" values
+t_start <- 1 + (start - 1) / freq
+t_end   <- 1 + (end   - 1) / freq
+t_test_start <- 1 + (end) / freq          # row end + 1
+t_test_end   <- 1 + (end + h - 1) / freq  # row end + h
+
+# train/test as ts
+y_train <- window(y_all, start = t_start, end = t_end)
+y_test  <- window(y_all, start = t_test_start, end = t_test_end)
+
+# additional test set roughly 6 months forward in time
+
+gap <- 4000  
+
+t_test1_start <- t_test_start + gap / freq
+t_test1_end   <- t_test1_start + (h - 1) / freq
+
+y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
+
+```
+
+## Fixed and non-fixed parameters in p/q polynomials
+
+```{r}
+p <- rep(0, 18)
+p[1] <- NA
+p[2] <- NA
+p[11] <- 0
+p[18] <- NA
+
+q <- rep(0, 23)
+q[2] <- NA
+q[20] <- NA
+q[23] <- NA
+```
+
+## Seasonal ARIMA model:
+
+```{r}
+fit <- Arima(y_train,
+                 order = c(18,0,23),
+                fixed = c(p,q,NA),
+                 seasonal = c(0,1,1))
+```
+
+## Adding residuals to df
+
+```{r}
+df_he$res <- fit$residuals
+```
+
+## 8 wind regimes
+
+```{r}
+wind_regime <- function(wd, ws, rot = 45) {
+  wd <- (wd - rot) %% 360
+  out <- rep(NA_character_, length(wd))
+
+  # Only assign R1–R4 when wind speed is not zero, when zero, set regime to R5
+  idx <- !is.na(ws) & ws != 0 & !is.na(wd)
+ 
+  out[!is.na(ws) & ws == 0] <- "R0"
+  out[idx & wd >   0 & wd <=  45] <- "R1"
+  out[idx & wd >  45 & wd <= 90] <- "R2"
+  out[idx & wd >  90 & wd <= 135] <- "R3"
+  out[idx & wd >  135 & wd <= 180] <- "R4"
+  out[idx & wd > 180 & wd <= 225] <- "R5"
+  out[idx & wd > 225 & wd <  270] <- "R6"
+  out[idx & wd > 270 & wd <  315] <- "R7"
+  out[idx & wd > 315 & wd <  360] <- "R8"
+  out[idx & wd == 0]              <- "R8"
+
+  factor(out, levels = c("R0","R1","R2", "R3","R4","R5", "R6", "R7", "R8"))
+
+}
+
+df_he$regime <- wind_regime(df_he$Vindriktning, df_he$Vindhastighet, rot = 45)
+```
+
+## Add danish weather station
+
+```{r}
+setwd("..")
+source("Code/DenmarkFunctions.r")
+```
+
+```{r}
+# Get available parameters for the station
+params <- c("temp_dry","wind_dir","wind_speed")
+
+start_time <- format(as.POSIXct(df_he$ts_utc[1], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+end_time <- format(as.POSIXct(df_he$ts_utc[nrow(df_he)], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+```
+
+## Loading wanted stations
+```{r}
+stations <- c(
+  kb = "06180", # Kobenhavn lufthavn
+  ro = "06170", # Roskilde Lufthavn
+  gn = "06049", # Gniben
+  sl = "06073", # Sletterhage Fyr
+  an = "06079"  # Anholt
+)
+
+df_list <- vector("list", length(stations))
+names(df_list) <- names(stations)
+
+missing_list <- vector("list", length(stations))
+names(missing_list) <- names(stations)
+
+for (nm in names(stations)) {
+  station_id <- stations[[nm]]
+
+  observations <- get_observations_for_station(
+    station_id = station_id,
+    parameters = params,
+    start_dt   = start_time,
+    end_dt     = end_time,
+    limit      = 20000
+  )
+
+  full_seq <- seq(
+    from = min(observations$observed),
+    to   = max(observations$observed),
+    by   = "10 min"
+  )
+
+  missing_times <- full_seq[!full_seq %in% observations$observed]
+  missing_list[[nm]] <- missing_times
+
+  df <- process_hourly_data(observations) %>%
+    rename(
+      Lufttemperatur = temp_dry,
+      Vindriktning   = wind_dir,
+      Vindhastighet  = wind_speed,
+      ts_utc         = observed
+    )
+
+  fit_x <- forecast::auto.arima(df$Lufttemperatur)
+  df$res <- residuals(fit_x)
+
+  df_list[[nm]] <- df
+}
+
+# If you want:
+df_kb <- df_list$kb
+df_ro <- df_list$ro
+df_gn <- df_list$gn
+df_sl <- df_list$sl
+df_an <- df_list$an
+```
+
+```{r}
+table(df_he$regime, useNA = "ifany")
+```
+
+
+### R1
+## Hästveda
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_hä,
+  regimes = "R1"
+)
+```
+
+### R2
+## Hörby
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_hö,
+  regimes = "R2"
+)
+```
+
+### R3
+## Skillinge
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_sk,
+  regimes = "R3"
+)
+```
+
+### R4
+## Falsterbo
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_fa,
+  regimes = "R4"
+)
+```
+## Köbenhavn lufthavn
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_kb,
+  regimes = "R4"
+)
+```
+## Roskilde Lufthavn
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ro,
+  regimes = "R4"
+)
+```
+
+### R5
+## Roskilde lufthavn
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ro,
+  regimes = "R5"
+)
+```
+## Gniben
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_gn,
+  regimes = "R5"
+)
+```
+## Sletterhage fyr
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_sl,
+  regimes = "R5"
+)
+```
+
+### R6
+## Anholt
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_an,
+  regimes = "R6"
+)
+```
+
+### R7
+## Nidingen
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ni,
+  regimes = "R7"
+)
+```
+## Ullared
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ul,
+  regimes = "R7"
+)
+```
+
+### R8
+##Ljungby
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_lj,
+  regimes = "R8"
+)
+```

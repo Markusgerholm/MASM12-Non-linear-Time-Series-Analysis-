@@ -75,7 +75,7 @@ df_fa <- falsterbo_2024_2025[start:end, ] # south
 df_hä <- hästveda_2024_2025[start:end, ] # east north east
 df_lj <- ljungby_2024_2025[start:end, ] # north east
 df_ul <- ullared_2024_2025[start:end, ] # north
-df_sk <- skillinge_2024_2025[start:end, ] # south west
+df_sk <- skillinge_2024_2025[start:end, ] # south east
 df_hö <- hörby_2024_2025[start:end, ] # east
 ```
 
@@ -238,23 +238,96 @@ df_he$res <- fit$residuals
 ## Regimes for wind direction:
 
 ```{r}
-## CURENNTLY INSTANCES WITH 0 WIND ARE COUNTED AS NORTH. NEED TO BE FIXED!!
-wind_regime <- function(wd, rot = 45) {
-  wd <- (wd - rot) %% 360   # rotate regimes clockwise by rot degrees
+wind_regime <- function(wd, ws, rot = 45) {
+  wd <- (wd - rot) %% 360
   out <- rep(NA_character_, length(wd))
 
-  out[wd >   0 & wd <=  90] <- "R1"
-  out[wd >  90 & wd <= 180] <- "R2"
-  out[wd > 180 & wd <= 270] <- "R3"
-  out[wd > 270 & wd <  360] <- "R4"
-  out[wd == 0]              <- "R4"
+  # Only assign R1–R4 when wind speed is not zero, when zero, set regime to R5
+  idx <- !is.na(ws) & ws != 0 & !is.na(wd)
+ 
+  out[!is.na(ws) & ws == 0] <- "R0"
+  out[idx & wd >   0 & wd <=  90] <- "R1"
+  out[idx & wd >  90 & wd <= 180] <- "R2"
+  out[idx & wd > 180 & wd <= 270] <- "R3"
+  out[idx & wd > 270 & wd <  360] <- "R4"
+  out[idx & wd == 0]              <- "R4"
 
-  factor(out, levels = c("R1","R2","R3","R4"))
+  factor(out, levels = c("R0","R1","R2","R3","R4"))
+
 }
 
-df_he$regime <- wind_regime(df_he$Vindriktning, rot = 45)
+df_he$regime <- wind_regime(df_he$Vindriktning, df_he$Vindhastighet, rot = 45)
+```
+
+## 8 wind regimes
+
+```{r}
+wind_regime <- function(wd, ws, rot = 45) {
+  wd <- (wd - rot) %% 360
+  out <- rep(NA_character_, length(wd))
+
+  # Only assign R1–R4 when wind speed is not zero, when zero, set regime to R5
+  idx <- !is.na(ws) & ws != 0 & !is.na(wd)
+ 
+  out[!is.na(ws) & ws == 0] <- "R0"
+  out[idx & wd >   0 & wd <=  45] <- "R1"
+  out[idx & wd >  45 & wd <= 90] <- "R2"
+  out[idx & wd >  90 & wd <= 135] <- "R3"
+  out[idx & wd >  135 & wd <= 180] <- "R4"
+  out[idx & wd > 180 & wd <= 225] <- "R5"
+  out[idx & wd > 225 & wd <  270] <- "R6"
+  out[idx & wd > 270 & wd <  315] <- "R7"
+  out[idx & wd > 315 & wd <  360] <- "R8"
+  out[idx & wd == 0]              <- "R8"
+
+  factor(out, levels = c("R0","R1","R2", "R3","R4","R5", "R6", "R7", "R8"))
+
+}
+
+df_he$regime <- wind_regime(df_he$Vindriktning, df_he$Vindhastighet, rot = 45)
+```
+
+```{r}
+plot_regime_compass <- function(rot = 0, show_calm = TRUE, calm_radius = 0.25) {
+
+  regimes <- data.frame(
+    name = paste0("R", 1:8),
+    from = c(0, 45, 90, 135, 180, 225, 270, 315) + rot,
+    to   = c(45, 90, 135, 180, 225, 270, 315, 360) + rot
+  )
+
+  plot(0, 0, type="n", asp=1, xlim=c(-1.2,1.2), ylim=c(-1.2,1.2),
+       axes=FALSE, xlab="", ylab="")
+  symbols(0, 0, circles=1, inches=FALSE, add=TRUE)
+
+  deg2rad <- function(deg) (90 - deg) * pi/180  # 0° = North at top
+
+  # Draw R1–R8 sectors
+  for (i in 1:nrow(regimes)) {
+    a1 <- deg2rad(regimes$from[i])
+    a2 <- deg2rad(regimes$to[i])
+    th <- seq(a1, a2, length.out = 200)
+
+    polygon(c(0, cos(th), 0), c(0, sin(th), 0), border="black")
+    mid <- deg2rad((regimes$from[i] + regimes$to[i]) / 2)
+    text(0.75*cos(mid), 0.75*sin(mid), regimes$name[i], cex=1.2)
+  }
+
+  # Draw R0 (calm: Vindhastighet == 0) as center circle
+  if (show_calm) {
+    symbols(0, 0, circles=calm_radius, inches=FALSE, add=TRUE,
+            fg="black", bg="grey90")
+    text(0, 0, "R0", cex=1.1)
+  }
+
+  # Cardinal directions
+  text(0,  1.1, "N"); text(1.1, 0, "E"); text(0, -1.1, "S"); text(-1.1, 0, "W")
+}
+
+plot_regime_compass(rot = 45)
 
 ```
+
 
 ```{r}
 plot_regime_compass <- function(rot = 0) {
@@ -299,7 +372,7 @@ spd_labels <- c("0–2","2–4","4–6","6–8","8–10","10–12",
 
 # prepare data
 rose_df <- df_he %>%
-  filter(!is.na(Vindriktning), !is.na(Vindhastighet)) %>%
+  filter(!is.na(Vindriktning), !is.na(Vindhastighet), Vindhastighet != 0) %>%
   mutate(
     wd = Vindriktning %% 360,
     dir16 = labels16[(floor((wd + 11.25) / 22.5) %% 16) + 1],
@@ -325,7 +398,7 @@ library(ggplot2)
 
 # compute mean wind speed per regime
 rose_mean <- df_he %>%
-  filter(!is.na(regime), !is.na(Vindhastighet)) %>%
+  filter(!is.na(regime), !is.na(Vindhastighet), Vindhastighet != 0) %>%
   mutate(regime = factor(regime, levels = c("R1","R2","R3","R4"))) %>%
   group_by(regime) %>%
   summarise(mean_speed = mean(Vindhastighet), .groups = "drop")
@@ -369,6 +442,9 @@ start_time <- format(as.POSIXct(df_he$ts_utc[1], tz = "UTC"),
 end_time <- format(as.POSIXct(df_he$ts_utc[nrow(df_he)], tz = "UTC"),
        "%Y-%m-%dT%H:%M:%SZ")
 
+# change to desired station
+station_id <- "06180" 
+
 # Fetch observations
 observations <- get_observations_for_station(
   station_id = station_id,
@@ -400,7 +476,6 @@ hourly_dmi <- process_hourly_data(observations)
 ```
 
 ```{r}
-
 #rename columns to match swedish data
 hourly_dmi <- hourly_dmi %>%
   rename(Lufttemperatur = temp_dry, Vindriktning = wind_dir, Vindhastighet = wind_speed, ts_utc = observed)
@@ -418,7 +493,7 @@ ccf(as.numeric(hourly_dmi$res),as.numeric(df_he$res), lag.max = 48,na.action = n
 ```
 
 ```{r}
-df_he_R <- filter(df_he, regime == "R4")
+df_he_R <- filter(df_he, regime == "R1")
 
 # times where Helsingborg is in R1
 t_R <- df_he_R$ts_utc
@@ -483,7 +558,7 @@ abline(h = c(-ci, ci), lty = 2)
 ```{r}
 plot_ccf_with_prewhitened_station <- function(df_he,
                                               df_x,
-                                              regimes = c("R1", "R2", "R3", "R4"),
+                                              regimes = c("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"),
                                               time_col = "ts_utc",
                                               value_col = "Lufttemperatur",
                                               lag_max = 50) {
@@ -530,29 +605,104 @@ plot_ccf_with_prewhitened_station <- function(df_he,
 
 ```
 
-### Ullared
-
+### R1
+## Hästveda
 ```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
-  df_x  = df_ul
+  df_x  = df_hä,
+  regimes = "R1"
 )
-
 ```
 
+### R2
+## Hörby
 ```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
-  df_x  = df_hä
+  df_x  = df_hö,
+  regimes = "R2"
 )
 ```
 
+### R3
+## Skillinge
 ```{r}
 plot_ccf_with_prewhitened_station(
   df_he = df_he,
-  df_x  = df_hö
+  df_x  = df_sk,
+  regimes = "R3"
 )
 ```
+
+### R4
+## Falsterbo
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_fa,
+  regimes = "R4"
+)
+```
+## Köbenhavn lufthavn
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_kb,
+  regimes = "R4"
+)
+```
+## Roskilde Lufthavn
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ro,
+  regimes = "R4"
+)
+```
+
+### R5
+## Roskilde lufthavn
+
+## Gniben
+
+## Sletterhage fyr
+
+### R6
+## Anholt
+
+
+### R7
+## Nidingen
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ni,
+  regimes = "R7"
+)
+```
+## Ullared
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_ul,
+  regimes = "R7"
+)
+```
+
+### R8
+##Ljungby
+```{r}
+plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_lj,
+  regimes = "R8"
+)
+```
+
+
+
+
 
 ```{r}
 plot_ccf_with_prewhitened_station(
@@ -623,8 +773,4 @@ Note: Many stations seem to have high correlations at R4. R4 has low wind speed 
 #df_he_R <- diff(df_he_R$res, lag = 1)
 #df_x <- diff(df_x$Lufttemperatur, lag = 1)
 ccf(df_he_R$res, df_x$Lufttemperatur, lag.max = 50, na.action = na.pass)
-```
-
-```{r}
-
 ```
