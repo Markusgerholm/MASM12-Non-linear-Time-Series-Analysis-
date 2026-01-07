@@ -292,7 +292,6 @@ fit_R3 <- Arima(
 summary(fit_R3)
 ```
 
-
 # R4 - Ullared, lags: 0, 1, 14
 ```{r}
 # 1) Subset Helsingborg to R4
@@ -334,5 +333,45 @@ fit_R4 <- Arima(
 summary(fit_R4)
 ```
 
+## Kalman filter
 
+```{r}
+setwd("..")
+source("Code/KalmanInputR1.R")
+```
+
+
+```{r}
+out_R1 <- predValuesInputR1(hörby_R1$Lufttemperatur, kStep = 1)
+```
+
+## RMSE
+
+```{r}
+x <- hörby_R1$Lufttemperatur
+fc <- out_R1$xhatk[, 1]          # forecast for next time step
+t0 <- 41
+fc2 <- fc[t0:(length(x)-1)]
+x2  <- x[(t0+1):length(x)]
+RMSE_R1 <- sqrt(mean((x2 - fc2)^2, na.rm = TRUE))
+RMSE_R1
+```
+
+## Plot of prediction
+```{r}
+plot(x, type = "l", col = "blue")
+lines(fc, col = "red")
+```
+
+## Plot of states
+
+```{r}
+theta <- out_R1$theta
+par(mfrow = c(2,2), mar = c(4,4,2,1))
+
+plot(theta[1,], type="l", xlab="t", ylab="value", main="phi1")
+plot(theta[2,], type="l", xlab="t", ylab="value", main="theta1 (ma1)")
+plot(theta[3,], type="l", xlab="t", ylab="value", main="theta2 (ma2)")
+plot(theta[4,], type="l", xlab="t", ylab="value", main="theta3 (ma3)")
+```
 
