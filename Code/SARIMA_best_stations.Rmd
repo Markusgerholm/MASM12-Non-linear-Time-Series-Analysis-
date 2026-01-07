@@ -308,7 +308,6 @@ df_an <- df_list$an
 table(df_he$regime, useNA = "ifany")
 ```
 
-
 ### R1
 ## Hästveda & Hörby
 ```{r}
@@ -407,16 +406,7 @@ plot_ccf_with_prewhitened_station(
   regimes = "R4"
 )
 ```
-## Evaluating stations in R3
-```{r}
-stations <- list(
-  ro = df_ro,
-  gn = df_gn,
-  sl = df_sl,
-  an = df_an
-)
-
-```
+## Evaluating stations in R2
 
 ## Function for obtaining positive lags greater than upper CI
 
@@ -461,8 +451,8 @@ get_ccf_lags <- function(df_he, df_x_pw, reg,
 ## See which lags are significant
 
 ```{r}
-df_ro_pw <- prewhiten_station(df_ro)
-lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3)
+df_ro_pw <- prewhiten_station(df_sk)
+lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R2", lag_max = 50, top_k = 3)
 lags_ro_R3
 ```
 
@@ -536,7 +526,7 @@ rank_stations_by_ccf_lags <- function(df_he, station_list, reg,
   y <- he_R[[value_col]]
 
   # baseline CV
-  base <- score_arimax_rolling(y, X = NULL, initial = initial)
+  base <- score_arimax_fixed(y, X = NULL, initial = initial)
 
   res <- lapply(names(station_list), function(nm) {
     df_x <- station_list[[nm]]
@@ -592,8 +582,38 @@ rank_stations_by_ccf_lags <- function(df_he, station_list, reg,
 }
 ```
 
-## Prewhitening and adding to list
+## R1
+```{r}
+df_hä_pw <- prewhiten_station(df_hä)
+df_hö_pw <- prewhiten_station(df_hö)
 
+stations_R1 <- list(
+  hä = df_hä_pw,
+  hö = df_hö_pw
+)
+rank_R1 <- rank_stations_by_ccf_lags(df_he, stations_R1, reg = "R1",
+                                     lag_max = 50, top_k = 3, initial = 400)
+rank_R1
+```
+
+## R2
+```{r}
+df_sk_pw <- prewhiten_station(df_sk)
+df_fa_pw <- prewhiten_station(df_fa)
+df_kb_pw <- prewhiten_station(df_kb)
+df_ro_pw <- prewhiten_station(df_ro)
+
+stations_R2 <- list(
+  sk = df_sk_pw,
+  fa = df_fa_pw,
+  kb = df_kb_pw,
+  ro = df_ro_pw
+)
+rank_R2 <- rank_stations_by_ccf_lags(df_he, stations_R2, reg = "R2",
+                                     lag_max = 50, top_k = 3, initial = 500)
+rank_R2
+```
+## R3
 ```{r}
 df_ro_pw <- prewhiten_station(df_ro)
 df_gn_pw <- prewhiten_station(df_gn)
@@ -606,20 +626,36 @@ stations_R3 <- list(
   sl = df_sl_pw,
   an = df_an_pw
 )
-```
-
-## Fitting models on first 2000 observations and then computing RMSE for ARIMA and ARIMAX with each station
-# OBS: is ARIMA fitted on more data than ARIMAX? Check code so that it is a fair comparison
-
-```{r}
 rank_R3 <- rank_stations_by_ccf_lags(df_he, stations_R3, reg = "R3",
                                      lag_max = 50, top_k = 3, initial = 500)
 rank_R3
 ```
+## R4
+```{r}
+df_ni_pw <- prewhiten_station(df_ni)
+df_ul_pw <- prewhiten_station(df_ul)
+df_lj_pw <- prewhiten_station(df_lj)
+
+stations_R4 <- list(
+  ni = df_ni_pw,
+  ul = df_ul_pw,
+  lj = df_lj_pw
+)
+rank_R4 <- rank_stations_by_ccf_lags(df_he, stations_R4, reg = "R4",
+                                     lag_max = 50, top_k = 3, initial = 200)
+rank_R4
+```
+
+## Winners based on RMSE
+# R1 - Hörby, lags: 0, 22, 40
+# R2 - Köbenhavn lufthavn, lags: 0, 8, 19
+# R3 - Roskilde lufthavn, lags: 14, 15, 25
+# R4 - Ullared, lags: 0, 1, 14
+
+## SETARMA-X
 
 ```{r}
-rank_R3 <- rank_stations_by_ccf_lags(df_he, stations_R3, reg = "R3",
-                                     lag_max = 50, top_k = 3, initial = 700)
-rank_R3
+
 ```
+
 
