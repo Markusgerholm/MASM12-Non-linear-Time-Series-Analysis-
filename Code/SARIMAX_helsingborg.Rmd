@@ -1,0 +1,338 @@
+---
+title: "SARIMAX_helsingborg"
+output: html_document
+---
+
+## Loading data
+
+```{r}
+library(zoo)
+library(forecast)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+setwd("..")
+source("Code/read_data2.r")
+```
+
+## 2024 model
+
+```{r}
+helsingborg_2024 <- helsingborg %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
+  )
+hörby_2024 <- hörby %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
+  )
+ullared_2024 <- ullared %>%
+  filter(
+    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
+  )
+```
+
+## Regular ARIMA model
+
+```{r}
+start <- 3200
+end <- 5900
+df_he <- helsingborg_2024[start:end, ] # center
+
+h <- 500
+freq <- 24
+# full series from your dataframe
+y_all <- ts(helsingborg_2024$Lufttemperatur, frequency = 24)
+
+# convert row indices to ts "time" values
+t_start <- 1 + (start - 1) / freq
+t_end   <- 1 + (end   - 1) / freq
+t_test_start <- 1 + (end) / freq          # row end + 1
+t_test_end   <- 1 + (end + h - 1) / freq  # row end + h
+
+# train/test as ts
+y_train <- window(y_all, start = t_start, end = t_end)
+y_test  <- window(y_all, start = t_test_start, end = t_test_end)
+
+# additional test set roughly 6 months forward in time
+
+gap <- 2000  
+
+t_test1_start <- t_test_start + gap / freq
+t_test1_end   <- t_test1_start + (h - 1) / freq
+
+y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
+
+p <- rep(0, 18)
+p[1] <- NA
+p[2] <- NA
+p[11] <- 0
+p[18] <- NA
+
+q <- rep(0, 23)
+q[2] <- NA
+q[20] <- NA
+q[23] <- NA
+
+fit <- Arima(y_train,
+                 order = c(18,0,23),
+                fixed = c(p,q,NA),
+                 seasonal = c(0,1,1))
+```
+
+```{r}
+wind_regime4 <- function(wd, ws, rot = 45) {
+  wd <- (wd - rot) %% 360
+  out <- rep(NA_character_, length(wd))
+  # Only assign R1–R4 when wind speed is not zero, when zero, set regime to R0
+  idx <- !is.na(ws) & ws != 0 & !is.na(wd)
+  out[!is.na(ws) & ws == 0] <- "R0"
+  out[idx & wd >   0 & wd <=  90] <- "R1"
+  out[idx & wd >  90 & wd <= 180] <- "R2"
+  out[idx & wd > 180 & wd <= 270] <- "R3"
+  out[idx & wd > 270 & wd <  360] <- "R4"
+  out[idx & wd == 0]              <- "R4"
+  factor(out, levels = c("R0","R1","R2","R3","R4"))
+}
+helsingborg_2024$regime <- wind_regime4(helsingborg_2024$Vindriktning, helsingborg_2024$Vindhastighet, rot = 45)
+```
+
+```{r}
+table(helsingborg_2024$regime, useNA = "ifany")
+```
+
+```{r}
+setwd("..")
+source("Code/DenmarkFunctions.r")
+```
+
+```{r}
+# Get available parameters for the station
+params <- c("temp_dry","wind_dir","wind_speed")
+
+start_time <- format(as.POSIXct(helsingborg_2024$ts_utc[1], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+end_time <- format(as.POSIXct(helsingborg_2024$ts_utc[nrow(helsingborg_2024)], tz = "UTC"),
+       "%Y-%m-%dT%H:%M:%SZ")
+```
+
+```{r}
+stations <- c(
+  kb = "06180", # Kobenhavn lufthavn
+  ro = "06170" # Roskilde Lufthavn
+)
+df_list <- vector("list", length(stations))
+names(df_list) <- names(stations)
+
+missing_list <- vector("list", length(stations))
+names(missing_list) <- names(stations)
+
+for (nm in names(stations)) {
+  station_id <- stations[[nm]]
+
+  observations <- get_observations_for_station(
+    station_id = station_id,
+    parameters = params,
+    start_dt   = start_time,
+    end_dt     = end_time,
+    limit      = 60000
+  )
+
+  full_seq <- seq(
+    from = min(observations$observed),
+    to   = max(observations$observed),
+    by   = "10 min"
+  )
+
+  missing_times <- full_seq[!full_seq %in% observations$observed]
+  missing_list[[nm]] <- missing_times
+
+  df <- process_hourly_data(observations) %>%
+    rename(
+      Lufttemperatur = temp_dry,
+      Vindriktning   = wind_dir,
+      Vindhastighet  = wind_speed,
+      ts_utc         = observed
+    )
+
+  df_list[[nm]] <- df
+}
+df_kb <- df_list$kb
+df_ro <- df_list$ro
+```
+
+## Fitting models for each regime
+
+# R1 - Hörby, lags: 0, 22, 40
+```{r}
+# 1) Subset Helsingborg to R1
+df_R1 <- helsingborg_2024 %>%
+  filter(regime == "R1") %>%
+  arrange(ts_utc)
+
+# 2) Align Hörby to the same timestamps as df_R1
+hörby_R1 <- hörby_2024 %>%
+  semi_join(df_R1 %>% select(ts_utc), by = "ts_utc") %>%
+  arrange(ts_utc)
+
+# 3) Build X on the aligned subset (so lengths match)
+X_R1 <- cbind(
+  x_L0  = hörby_R1$Lufttemperatur,
+  x_L22 = dplyr::lag(hörby_R1$Lufttemperatur, 22),
+  x_L40 = dplyr::lag(hörby_R1$Lufttemperatur, 40)
+)
+
+# 4) Drop rows with NA due to lagging, and apply same trimming to y
+keep <- complete.cases(df_R1$Lufttemperatur, X_R1)
+y_R1 <- df_R1$Lufttemperatur[keep]
+y_R1 <- ts(y_R1, frequency = 24)
+X_R1 <- X_R1[keep, , drop = FALSE]
+
+# 5) IMPORTANT: extend your fixed vector with NA's for the regression coefficients
+fixed_base <- c(p, q, NA)                 # your AR(18), MA(23), and seasonal MA(1)
+fixed_R1   <- c(fixed_base, rep(NA, ncol(X_R1)))  # + beta coefficients for xreg
+
+# 6) Fit ARIMAX with the same ARIMA structure, but estimate free AR/MA + xreg betas
+fit_R1 <- Arima(
+  y_R1,
+  order    = c(18, 0, 23),
+  seasonal = c(0, 1, 1),
+  xreg     = X_R1,
+  fixed    = fixed_R1,
+  include.mean = FALSE
+)
+summary(fit_R1)
+```
+
+# R2 - Köbenhavn lufthavn, lags: 0, 8, 19
+```{r}
+# 1) Subset Helsingborg to R2
+df_R2 <- helsingborg_2024 %>%
+  filter(regime == "R2") %>%
+  arrange(ts_utc)
+
+# 2) Align Hörby to the same timestamps as df_R2
+köbenhavn_R2 <- df_kb %>%
+  semi_join(df_R2 %>% select(ts_utc), by = "ts_utc") %>%
+  arrange(ts_utc)
+
+# 3) Build X on the aligned subset (so lengths match)
+X_R2 <- cbind(
+  x_L0  = köbenhavn_R2$Lufttemperatur,
+  x_L8 = dplyr::lag(köbenhavn_R2$Lufttemperatur, 8),
+  x_L19 = dplyr::lag(köbenhavn_R2$Lufttemperatur, 19)
+)
+
+# 4) Drop rows with NA due to lagging, and apply same trimming to y
+keep <- complete.cases(df_R2$Lufttemperatur, X_R2)
+y_R2 <- df_R2$Lufttemperatur[keep]
+y_R2 <- ts(y_R2, frequency = 24)
+X_R2 <- X_R2[keep, , drop = FALSE]
+
+# 5) IMPORTANT: extend your fixed vector with NA's for the regression coefficients
+fixed_base <- c(p, q, NA)                 # your AR(18), MA(23), and seasonal MA(1)
+fixed_R2   <- c(fixed_base, rep(NA, ncol(X_R2)))  # + beta coefficients for xreg
+
+# 6) Fit ARIMAX with the same ARIMA structure, but estimate free AR/MA + xreg betas
+fit_R2 <- Arima(
+  y_R2,
+  order    = c(18, 0, 23),
+  seasonal = c(0, 1, 1),
+  xreg     = X_R2,
+  fixed    = fixed_R2,
+  include.mean = FALSE
+)
+summary(fit_R2)
+```
+
+
+# R3 - Roskilde lufthavn, lags: 14, 15, 25
+```{r}
+# 1) Subset Helsingborg to R3
+df_R3 <- helsingborg_2024 %>%
+  filter(regime == "R3") %>%
+  arrange(ts_utc)
+
+# 2) Align Roskilde to the same timestamps as df_R3
+roskilde_R3 <- df_ro %>%
+  semi_join(df_R3 %>% select(ts_utc), by = "ts_utc") %>%
+  arrange(ts_utc)
+
+# 3) Build X on the aligned subset (so lengths match)
+X_R3 <- cbind(
+  x_L14  = dplyr::lag(roskilde_R3$Lufttemperatur, 14),
+  x_L15 = dplyr::lag(roskilde_R3$Lufttemperatur, 15),
+  x_L25 = dplyr::lag(roskilde_R3$Lufttemperatur, 25)
+)
+
+# 4) Drop rows with NA due to lagging, and apply same trimming to y
+keep <- complete.cases(df_R3$Lufttemperatur, X_R3)
+y_R3 <- df_R3$Lufttemperatur[keep]
+y_R3 <- ts(y_R3, frequency = 24)
+X_R3 <- X_R3[keep, , drop = FALSE]
+
+# 5) IMPORTANT: extend your fixed vector with NA's for the regression coefficients
+fixed_base <- c(p, q, NA)                 # your AR(18), MA(23), and seasonal MA(1)
+fixed_R3   <- c(fixed_base, rep(NA, ncol(X_R3)))  # + beta coefficients for xreg
+
+# 6) Fit ARIMAX with the same ARIMA structure, but estimate free AR/MA + xreg betas
+fit_R3 <- Arima(
+  y_R3,
+  order    = c(18, 0, 23),
+  seasonal = c(0, 1, 1),
+  xreg     = X_R3,
+  fixed    = fixed_R3,
+  include.mean = FALSE
+)
+summary(fit_R3)
+```
+
+
+# R4 - Ullared, lags: 0, 1, 14
+```{r}
+# 1) Subset Helsingborg to R4
+df_R4 <- helsingborg_2024 %>%
+  filter(regime == "R4") %>%
+  arrange(ts_utc)
+
+# 2) Align Ullared to the same timestamps as df_R4
+ullared_R4 <- ullared_2024 %>%
+  semi_join(df_R4 %>% select(ts_utc), by = "ts_utc") %>%
+  arrange(ts_utc)
+
+# 3) Build X on the aligned subset (so lengths match)
+X_R4 <- cbind(
+  x_L0  = dplyr::lag(ullared_R4$Lufttemperatur, 0),
+  x_L1 = dplyr::lag(ullared_R4$Lufttemperatur, 1),
+  x_L14 = dplyr::lag(ullared_R4$Lufttemperatur, 14)
+)
+
+# 4) Drop rows with NA due to lagging, and apply same trimming to y
+keep <- complete.cases(df_R4$Lufttemperatur, X_R4)
+y_R4 <- df_R4$Lufttemperatur[keep]
+y_R4 <- ts(y_R4, frequency = 24)
+X_R4 <- X_R4[keep, , drop = FALSE]
+
+# 5) IMPORTANT: extend your fixed vector with NA's for the regression coefficients
+fixed_base <- c(p, q, NA)                 # your AR(18), MA(23), and seasonal MA(1)
+fixed_R4   <- c(fixed_base, rep(NA, ncol(X_R4)))  # + beta coefficients for xreg
+
+# 6) Fit ARIMAX with the same ARIMA structure, but estimate free AR/MA + xreg betas
+fit_R4 <- Arima(
+  y_R4,
+  order    = c(18, 0, 23),
+  seasonal = c(0, 1, 1),
+  xreg     = X_R4,
+  fixed    = fixed_R4,
+  include.mean = FALSE
+)
+summary(fit_R4)
+```
+
+
+

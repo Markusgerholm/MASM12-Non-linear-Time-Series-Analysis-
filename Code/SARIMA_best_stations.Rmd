@@ -651,11 +651,3 @@ rank_R4
 # R2 - Köbenhavn lufthavn, lags: 0, 8, 19
 # R3 - Roskilde lufthavn, lags: 14, 15, 25
 # R4 - Ullared, lags: 0, 1, 14
-
-## SETARMA-X
-
-```{r}
-
-```
-
-
