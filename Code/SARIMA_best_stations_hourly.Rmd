@@ -1,60 +1,12 @@
 ---
+title: "SARIMA_best_stations_hourly"
+output: html_document
+---
+
+---
 title: "SARIMA_8regimes"
 output: html_document
 ---
-## Function for filtering based on regime
-
-```{r}
-plot_ccf_with_prewhitened_station <- function(df_he,
-                                              df_x,
-                                              regimes = c("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"),
-                                              time_col = "ts_utc",
-                                              value_col = "Lufttemperatur",
-                                              lag_max = 50) {
-  
-  library(dplyr)
-  library(forecast)
-  
-  x_name <- deparse(substitute(df_x))
-  ## -----------------------------
-  ## Prewhiten station (once)
-  ## -----------------------------
-  fit_x <- auto.arima(df_x[[value_col]])
-  df_x$res <- residuals(fit_x)  # keep as ts
-  
-  ## -----------------------------
-  ## Loop over regimes → separate plots
-  ## -----------------------------
-  for (reg in regimes) {
-    
-    df_he_R <- df_he %>% filter(regime == !!reg)
-    t_R <- df_he_R[[time_col]]
-    
-    # Align station to regime times
-    df_x_R <- df_x[df_x[[time_col]] %in% t_R, ]
-    
-    r <- ccf(df_x_R$res,
-             df_he_R$res,
-             lag.max = lag_max,
-             na.action = na.pass,
-             plot = FALSE)
-    
-    pos <- r$lag >= 0
-    n <- sum(complete.cases(df_x_R$res, df_he_R$res))
-    ci <- 1.96 / sqrt(n)
-    
-    plot(r$lag[pos], r$acf[pos], type = "h",
-         xlab = "Lag",
-         ylab = "CCF",
-         main = paste("CCF –", reg, "(", x_name, " prewhitened)"))
-    
-    abline(h = 0)
-    abline(h = c(-ci, ci), lty = 2)
-  }
-}
-
-```
-
 ## Function for CCF with hourly lags instead of element wise lags
 ```{r}
 plot_ccf_hourly_lags <- function(df_he,
@@ -382,59 +334,47 @@ table(df_he$regime, useNA = "ifany")
 ```
 
 ### R1
+## Hästveda & Hörby - hourly lags
 
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_hourly_lags(
   df_he = df_he,
-  df_x  = df_hö,
+  df_x  = df_hä,
   regimes = "R1"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_hö,
   regimes = "R1"
 )
 ```
 
-## Hästveda & Hörby
-```{r}
-par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_hä,
-  regimes = "R1"
-)
-plot_ccf_with_prewhitened_station(
-  df_he = df_he,
-  df_x  = df_hö,
-  regimes = "R1"
-)
-```
 ### R2
-## Skillinge & Falterbo
+## Skillinge & Falsterbo - hourly lags
 ```{r}
 par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_sk,
   regimes = "R2"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_fa,
   regimes = "R2"
 )
 ```
-## Köbenhavn lufthavn & Roskilde lufthavn
+
+## Köbenhavn lufthavn & Roskilde lufthavn - hourly lag
 ```{r}
 par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_kb,
   regimes = "R2"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_ro,
   regimes = "R2"
@@ -442,29 +382,30 @@ plot_ccf_with_prewhitened_station(
 ```
 
 ### R3
-## Roskilde lufthavn & Gniben
+## Roskilde lufthavn & Gniben - hourly lag
 ```{r}
 par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_ro,
   regimes = "R3"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_gn,
   regimes = "R3"
 )
 ```
-## Sletterhage fyr & Anholt
+
+## Sletterhage fyr & Anholt - hourly lag
 ```{r}
 par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_sl,
   regimes = "R3"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_an,
   regimes = "R3"
@@ -472,29 +413,29 @@ plot_ccf_with_prewhitened_station(
 ```
 
 ### R4
-## Nidingen & Ullared
+## Nidingen & Ullared - hourly lag
 ```{r}
 par(mfrow=c(1,2))
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_ni,
   regimes = "R4"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_ul,
   regimes = "R4"
 )
 ```
-##Ljungby
+
+##Ljungby - hourly lag
 ```{r}
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_lj,
   regimes = "R4"
 )
 ```
-## Evaluating stations in R2
 
 ## Function for obtaining positive lags greater than upper CI
 
@@ -536,11 +477,11 @@ get_ccf_lags <- function(df_he, df_x_pw, reg,
 
 ```
 
-## See which lags are significant
+## See which lags are significant, e.g R3
 
 ```{r}
-df_ro_pw <- prewhiten_station(df_sk)
-lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R2", lag_max = 50, top_k = 3)
+df_ro_pw <- prewhiten_station(df_ro)
+lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3)
 lags_ro_R3
 ```
 

@@ -1,8 +1,7 @@
 predValuesInputR2 <- function(inputdata, kStep){
   # Function for predicting input for R2 - Köbenhavn lufthavn
   x <-  inputdata
-  k <-  kStep
-  
+
   #Series: df_x[[value_col]] 
   #ARIMA(5,1,1) 
   
@@ -21,15 +20,15 @@ predValuesInputR2 <- function(inputdata, kStep){
   # Kalman filter
   N <- length(x)
   startInd <- 40
-  noPar <- 4
-  init_theta <- c(0.6093, -0.2361, 0.0938,  0.0688) # ar1 ma1, ma2, ma3
+  noPar <- 6
+  init_theta <- c(1.0833, -0.0149, -0.0128, -0.0742, -0.1386, -0.9527) # ar1 ar2, ar3, ar4, ar5, ma1
   w <- c(NA_real_, diff(x)) # differenced series
   
   xt <- matrix(NA_real_, nrow = noPar, ncol = N) # parameter estimates over time
   xt[ , startInd-1] <- init_theta   # initial estimates of states for ar1 ma1 ma2 ma3 
   
   A <- diag(noPar)
-  Rw <- 0.8238 # measurement noise 
+  Rw <- 0.5802 # measurement noise 
   Re <- diag(noPar) * 1e-5 # system noise
   P <- diag(noPar) * 1e-5 # initial covariance matrix
   
@@ -41,7 +40,7 @@ predValuesInputR2 <- function(inputdata, kStep){
   for(t in startInd:N){
     # Update the predicted state and the time-varying state vector.
     theta_pred <-  A %*% xt[ ,t-1, drop = FALSE]                         # x_{t|t-1} = A x_{t-1|t-1}
-    C <- matrix(c(w[t-1], e[t-1], e[t-2], e[t-3]), nrow=1)
+    C <- matrix(c(w[t-1], w[t-2], w[t-3], w[t-4], w[t-5], e[t-1]), nrow=1)
     
     w_hat <-  drop(C %*% theta_pred)
     what[t] <- w_hat
@@ -62,26 +61,26 @@ predValuesInputR2 <- function(inputdata, kStep){
     P_upd <- P - Kt %*% (S * t(Kt))
     P <- A %*% P_upd %*% t(A) + Re
     
-    # --- k-step forecast in levels from time t ---
-    # Use UPDATED parameters at time t
-    phi <- xt[1, t]
-    th1 <- xt[2, t]; th2 <- xt[3, t]; th3 <- xt[4, t]
+    # ---- k-step forecast of LEVELS from time t ----
+    phi <- xt[1:5, t]       # phi1..phi5
+    th1 <- xt[6, t]       # theta1
     
-    # Forecast differences w_{t+k|t} with future errors set to 0 in expectation
     w_fc <- numeric(kStep)
     
-    # k=1 uses w_t, e_t, e_{t-1}, e_{t-2}
-    w_fc[1] <- phi * w[t] + th1 * e[t] + th2 * e[t-1] + th3 * e[t-2]
+    # Keep last 5 w values: [w_t, w_{t-1}, ..., w_{t-4}]
+    last_w <- c(w[t], w[t-1], w[t-2], w[t-3], w[t-4])
     
-    if (kStep >= 2) {
-      # k=2: e_{t+1}=0, keep remaining known innovations where applicable
-      w_fc[2] <- phi * w_fc[1] + th2 * e[t] + th3 * e[t-1]
-    }
-    if (kStep >= 3) {
-      w_fc[3] <- phi * w_fc[2] + th3 * e[t]
-    }
-    if (kStep >= 4) {
-      for (h in 4:kStep) w_fc[h] <- phi * w_fc[h - 1]
+    for (h in 1:kStep) {
+      if (h == 1) {
+        # 1-step: AR part + MA(1)*e_t
+        w_fc[h] <- sum(phi * last_w) + th1 * e[t]
+      } else {
+        # h>=2: future innovations have E[e]=0, so pure AR recursion
+        w_fc[h] <- sum(phi * last_w)
+      }
+      
+      # Update rolling window: new w becomes most recent
+      last_w <- c(w_fc[h], last_w[1:(p-1)])
     }
     
     # Convert to level forecasts: x_{t+h} = x_t + sum_{j=1..h} w_fc[j]
