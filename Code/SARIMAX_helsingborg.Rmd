@@ -124,7 +124,7 @@ end_time <- format(as.POSIXct(helsingborg_2024$ts_utc[nrow(helsingborg_2024)], t
 ```{r}
 stations <- c(
   kb = "06180", # Kobenhavn lufthavn
-  ro = "06170" # Roskilde Lufthavn
+  sl = "06073" # Sletterhage Fyr
 )
 df_list <- vector("list", length(stations))
 names(df_list) <- names(stations)
@@ -163,12 +163,201 @@ for (nm in names(stations)) {
   df_list[[nm]] <- df
 }
 df_kb <- df_list$kb
-df_ro <- df_list$ro
+df_sl <- df_list$sl
+```
+
+## Regime switching model
+```{r}
+df_hö <- helsingborg_2024
+df_ul <- ullared_2024
+df_he <- helsingborg_2024
+```
+
+## Kalman imputation for missing values
+
+# Sletterhage
+```{r}
+y_obs <- df_sl$Lufttemperatur
+fit_sl <- forecast::auto.arima(y_obs)
+kr <- KalmanRun(y_obs, fit_sl$model)
+id_na <- which(is.na(y_obs))
+# predicted observation at each time: Z %*% alpha_t
+y_hat <- as.numeric(fit_sl$model$Z %*% t(kr$states))
+# impute only where missing
+y_filled <- y_obs
+y_filled[id_na] <- y_hat[id_na]
+df_sl$Lufttemperatur[id_na] <- y_hat[id_na]
+```
+
+# Ullared
+```{r}
+y_obs <- df_ul$Lufttemperatur
+fit_ul <- forecast::auto.arima(y_obs)
+kr <- KalmanRun(y_obs, fit_ul$model)
+id_na <- which(is.na(y_obs))
+# predicted observation at each time: Z %*% alpha_t
+y_hat <- as.numeric(fit_ul$model$Z %*% t(kr$states))
+# impute only where missing
+y_filled <- y_obs
+y_filled[id_na] <- y_hat[id_na]
+df_ul$Lufttemperatur[id_na] <- y_hat[id_na]
+
+```
+
+## Full hourly data frame
+
+```{r}
+df_full <- df_he %>%
+  select(ts_utc, y = Lufttemperatur, regime) %>%
+  inner_join(df_hö      %>% select(ts_utc, hö    = Lufttemperatur), by = "ts_utc") %>%
+  inner_join(df_kb      %>% select(ts_utc, kb    = Lufttemperatur), by = "ts_utc") %>%
+  inner_join(df_sl      %>% select(ts_utc, sl    = Lufttemperatur), by = "ts_utc") %>%
+  inner_join(df_ul      %>% select(ts_utc, ul    = Lufttemperatur), by = "ts_utc") %>%
+  arrange(ts_utc)
+```
+
+## Full hourly data frame with lagged station series
+
+```{r}
+df_full <- df_full %>%
+  mutate(
+    # Hörby lags
+    hö_L0  = hö,
+    hö_L23 = lag(hö, 23),
+    hö_L47 = lag(hö, 47),
+
+    # KB lags
+    kb_L0  = kb,
+    kb_L10 = lag(kb, 10),
+    kb_L47 = lag(kb, 47),
+
+    # SL lags
+    sl_L1  = lag(sl, 1),
+    sl_L12 = lag(sl, 12),
+    sl_L24 = lag(sl, 24),
+
+    # UL lags
+    ul_L0  = ul,
+    ul_L1  = lag(ul, 1),
+    ul_L25 = lag(ul, 25)
+  )
+```
+
+## Gating xregs by regime
+
+```{r}
+df_full <- df_full %>%
+  mutate(
+    # R1 uses Hörby
+    R1_x0  = if_else(regime == "R1", hö_L0,  0),
+    R1_x23 = if_else(regime == "R1", hö_L23, 0),
+    R1_x47 = if_else(regime == "R1", hö_L47, 0),
+
+    # R2 uses KB
+    R2_x0  = if_else(regime == "R2", kb_L0,  0),
+    R2_x10 = if_else(regime == "R2", kb_L10, 0),
+    R2_x47 = if_else(regime == "R2", kb_L47, 0),
+
+    # R3 uses SL
+    R3_x1  = if_else(regime == "R3", sl_L1,  0),
+    R3_x12 = if_else(regime == "R3", sl_L12, 0),
+    R3_x24 = if_else(regime == "R3", sl_L24, 0),
+
+    # R4 uses UL
+    R4_x0  = if_else(regime == "R4", ul_L0,  0),
+    R4_x1  = if_else(regime == "R4", ul_L1,  0),
+    R4_x25 = if_else(regime == "R4", ul_L25, 0)
+  )
+
+```
+
+## Building X matrix and fitting one ARIMAX on full hourly y
+
+```{r}
+X_cols <- c(
+  "R1_x0","R1_x23","R1_x47",
+  "R2_x0","R2_x10","R2_x47",
+  "R3_x1","R3_x12","R3_x24",
+  "R4_x0","R4_x1","R4_x25"
+)
+
+df_cc <- df_full %>%
+  filter(complete.cases(y, across(all_of(X_cols))))  # drops rows where active-regime xreg is NA
+
+y_all <- ts(df_cc$y, frequency = 24)
+X_all <- as.matrix(df_cc[, X_cols])
+
+fixed_base <- c(p, q, NA)                     # your 18 AR + 23 MA + seasonal MA(1)
+fixed_all  <- c(fixed_base, rep(NA, ncol(X_all)))
+
+fit_sarimax <- Arima(
+  y_all,
+  order    = c(18,0,23),
+  seasonal = c(0,1,1),
+  xreg     = X_all,
+  fixed    = fixed_all,
+  include.mean = FALSE
+)
+
+summary(fit_sarimax)
+
 ```
 
 ## Fitting models for each regime
+## Hourly lags
+# R1 - Hörby, lags: 0, 23, 47
 
-# R1 - Hörby, lags: 0, 22, 40
+```{r}
+library(dplyr)
+
+# 0) (Optional but recommended) make sure both are hourly and aligned by ts_utc
+df_full <- helsingborg_2024 %>%
+  select(ts_utc, y = Lufttemperatur, regime) %>%
+  inner_join(
+    hörby_2024 %>% select(ts_utc, x = Lufttemperatur),
+    by = "ts_utc"
+  ) %>%
+  arrange(ts_utc)
+
+# 1) Create lagged x on the FULL hourly series (this makes lags = hours)
+df_full <- df_full %>%
+  mutate(
+    x_L0  = x,
+    x_L23 = dplyr::lag(x, 23),
+    x_L47 = dplyr::lag(x, 47)
+  )
+
+# 2) Now subset to regime R1
+df_R1 <- df_full %>%
+  filter(regime == "R1")
+
+# 3) Drop NA rows caused by lagging (and any missing data)
+df_R1_cc <- df_R1 %>%
+  filter(complete.cases(y, x_L0, x_L23, x_L47))
+
+y_R1 <- ts(df_R1_cc$y, frequency = 24)
+X_R1 <- as.matrix(df_R1_cc %>% select(x_L0, x_L23, x_L47))
+
+# 4) Extend fixed vector to include betas for xreg
+fixed_base <- c(p, q, NA)  # your AR/MA + seasonal MA(1)
+fixed_R1   <- c(fixed_base, rep(NA, ncol(X_R1)))
+
+fit_R1 <- forecast::Arima(
+  y_R1,
+  order    = c(18, 0, 23),
+  seasonal = c(0, 1, 1),
+  xreg     = X_R1,
+  fixed    = fixed_R1,
+  include.mean = FALSE
+)
+
+summary(fit_R1)
+
+```
+
+## Element lags
+# R1  - Hörby, lags: 0, 22, 40
+
 ```{r}
 # 1) Subset Helsingborg to R1
 df_R1 <- helsingborg_2024 %>%

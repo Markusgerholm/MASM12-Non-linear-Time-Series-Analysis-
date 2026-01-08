@@ -444,7 +444,7 @@ plot_ccf_hourly_lags(
 prewhiten_station <- function(df_x, value_col = "Lufttemperatur") {
   fit_x <- forecast::auto.arima(df_x[[value_col]])
   df_x$res_x <- as.numeric(residuals(fit_x))
-  list(df = df_x, fit_x = fit_x)
+  df_x
 }
 # Hourly grid + join y and x on it, missing hours = NA
 make_hourly_grid_join <- function(df_he, df_x, time_col = "ts_utc", value_col = "Lufttemperatur") {
@@ -720,3 +720,16 @@ rank_R4
 # R4 - Ullared, lags: 0, 1, 25
 
 ## Model orders and parameter estimates of each station after prewhitening -> used for predicting input in Kalman
+```{r}
+prewhiten_station_model <- function(df_x, value_col = "Lufttemperatur") {
+  fit_x <- forecast::auto.arima(df_x[[value_col]])
+  df_x$res_x <- as.numeric(residuals(fit_x))
+  list(df = df_x, fit_x = fit_x)
+}
+```
+
+```{r}
+out_R1 <- prewhiten_station_model(df_sl)
+summary(out_R1$fit_x)
+```
+

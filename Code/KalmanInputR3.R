@@ -2,22 +2,24 @@ predValuesInputR3 <- function(inputdata, kStep){
   # Function for predicting input for R3 - Roskilde lufthavn
   x <-  inputdata
   k <-  kStep
+  #Series: df_x[[value_col]] 
+  #ARIMA(0,1,5) 
+  
+  #Coefficients:
+  #  ma1     ma2     ma3     ma4     ma5
+  #0.1613  0.2339  0.1612  0.1075  0.0594
+  #s.e.  0.0192  0.0193  0.0192  0.0192  0.0193
+  
+  #sigma^2 = 0.3075:  log likelihood = -2231
+  #AIC=4474   AICc=4474.03   BIC=4509.41
+  
+  #Training set error measures:
+  #                     ME      RMSE       MAE         MPE     MAPE      MASE          ACF1
+  #Training set 0.0001832287 0.5539274 0.4013771 -0.01488249 2.460254 0.9115275 -0.0002475592
   
   #Series: df_x[[value_col]] 
   #ARIMA(2,1,3) 
-  
-  #Coefficients:
-  #  ar1      ar2      ma1     ma2      ma3
-  #1.8755  -0.9404  -1.7951  0.8856  -0.0700
-  #s.e.  0.0315   0.0322   0.0693  0.0710   0.0218
-  
-  #sigma^2 = 0.8327:  log likelihood = -3579.67
-  #AIC=7171.35   AICc=7171.38   BIC=7206.75
-  
-  #Training set error measures:
-  #                     ME     RMSE       MAE        MPE     MAPE      MASE        ACF1
-  #Training set 0.004418726 0.911513 0.6636694 -0.3064596 4.483401 0.7984416 0.004088757
-  
+
   # Kalman filter
   N <- length(x)
   startInd <- 40
