@@ -442,54 +442,89 @@ plot_ccf_hourly_lags(
 ```{r}
 # Prewhiten x on the FULL x-series (once)
 prewhiten_station <- function(df_x, value_col = "Lufttemperatur") {
-  fit_x <- auto.arima(df_x[[value_col]])
-  df_x$res_x <- residuals(fit_x)
-  df_x
+  fit_x <- forecast::auto.arima(df_x[[value_col]])
+  df_x$res_x <- as.numeric(residuals(fit_x))
+  list(df = df_x, fit_x = fit_x)
+}
+# Hourly grid + join y and x on it, missing hours = NA
+make_hourly_grid_join <- function(df_he, df_x, time_col = "ts_utc", value_col = "Lufttemperatur") {
+  library(dplyr)
+
+  t_min <- max(min(df_he[[time_col]], na.rm = TRUE),
+               min(df_x[[time_col]],  na.rm = TRUE))
+  t_max <- min(max(df_he[[time_col]], na.rm = TRUE),
+               max(df_x[[time_col]],  na.rm = TRUE))
+
+  grid <- tibble(!!time_col := seq(from = t_min, to = t_max, by = "1 hour"))
+
+  grid %>%
+    left_join(df_he %>% select(all_of(time_col), y = all_of(value_col), y_res = res, regime),
+              by = time_col) %>%
+    left_join(df_x  %>% select(all_of(time_col), x = all_of(value_col), x_res = res_x),
+              by = time_col) %>%
+    arrange(.data[[time_col]])
 }
 
-# Then extract significant positive lags within a regime
-get_ccf_lags <- function(df_he, df_x_pw, reg,
-                         time_col = "ts_utc",
-                         lag_max = 50,
-                         top_k = 3) {
 
-  he_R <- df_he %>% filter(regime == reg) %>% arrange(.data[[time_col]])
-  t_R  <- he_R[[time_col]]
+# Then extract significant positive lags or significantly large lags within a regime
+get_ccf_lags_hourly <- function(df_he, df_x_pw, reg,
+                                time_col = "ts_utc",
+                                value_col = "Lufttemperatur",
+                                lag_max = 50,
+                                top_k = 3,
+                                choose = c("strongest","largest")) {
 
-  x_R  <- df_x_pw %>% filter(.data[[time_col]] %in% t_R) %>% arrange(.data[[time_col]])
+  library(dplyr)
+  choose <- match.arg(choose)
 
-  xw <- x_R$res_x
-  yw <- he_R$res  # your prewhitened Helsingborg residuals
+  full <- make_hourly_grid_join(df_he, df_x_pw, time_col = time_col, value_col = value_col)
+
+  xw <- full$x_res
+  yw <- ifelse(full$regime == reg, full$y_res, NA_real_)  # mask non-regime hours
 
   r <- ccf(xw, yw, lag.max = lag_max, plot = FALSE, na.action = na.pass)
 
+  # consider only lags >= 0 (same convention you used before)
   pos <- which(r$lag >= 0)
-  n   <- sum(complete.cases(xw, yw))
-  ci  <- 1.96 / sqrt(n)
+  lags <- as.integer(r$lag[pos])
+  acfv <- as.numeric(r$acf[pos])
 
-  sig_idx <- pos[abs(r$acf[pos]) > ci]
-  sig_lags <- as.integer(r$lag[sig_idx])
-  if (length(sig_lags) == 0) return(integer(0))
+  # compute a lag-specific CI using available pairs at that lag (more correct with NAs/masking)
+  n_lag <- sapply(lags, function(L) {
+    x_shift <- dplyr::lag(xw, L)
+    sum(complete.cases(x_shift, yw))
+  })
+  ci_lag <- 1.96 / sqrt(n_lag)
 
-  ord <- order(abs(r$acf[sig_idx]), decreasing = TRUE)
-  sig_lags[ord][seq_len(min(top_k, length(sig_lags)))]
+  sig <- which(abs(acfv) > ci_lag & is.finite(ci_lag))
+  if (length(sig) == 0) return(integer(0))
+
+  sig_lags <- lags[sig]
+  sig_acf  <- acfv[sig]
+
+  if (choose == "largest") {
+    # pick the largest hour lags among significant
+    sig_lags <- sort(unique(sig_lags), decreasing = TRUE)
+    return(sig_lags[seq_len(min(top_k, length(sig_lags)))])
+  } else {
+    # pick the strongest (largest |ccf|)
+    ord <- order(abs(sig_acf), decreasing = TRUE)
+    sig_lags[ord][seq_len(min(top_k, length(sig_lags)))]
+  }
 }
-
 ```
 
 ## See which lags are significant, e.g R3
 
 ```{r}
-df_ro_pw <- prewhiten_station(df_ro)
-lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3)
+df_ro_pw <- prewhiten_station(df_gn)
+lags_ro_R3 <- get_ccf_lags_hourly(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3, choose = "largest")
 lags_ro_R3
 ```
 
 ## Function for lagging x based on top 3 significant lags
 ```{r}
 make_lagged_xreg <- function(x, lags) {
-  # x: numeric vector
-  # lags: integer vector of nonnegative lags
   X <- sapply(lags, function(L) dplyr::lag(x, L))
   colnames(X) <- paste0("x_L", lags)
   as.matrix(X)
@@ -543,59 +578,66 @@ score_arimax_fixed <- function(y, X = NULL, initial = 200) {
 ## Function for ranking stations
 
 ```{r}
-rank_stations_by_ccf_lags <- function(df_he, station_list, reg,
-                                      time_col = "ts_utc",
-                                      value_col = "Lufttemperatur",
-                                      lag_max = 50,
-                                      top_k = 3,
-                                      initial = 200) {
+rank_stations_by_ccf_lags_hourly <- function(df_he, station_list, reg,
+                                             time_col = "ts_utc",
+                                             value_col = "Lufttemperatur",
+                                             lag_max = 50,
+                                             top_k = 3,
+                                             choose = c("strongest","largest"),
+                                             initial = 200) {
 
-  # regime slice (y)
-  he_R <- df_he %>% filter(regime == reg) %>% arrange(.data[[time_col]])
-  y <- he_R[[value_col]]
+  library(dplyr)
+  library(tidyr)
 
-  # baseline CV
-  base <- score_arimax_fixed(y, X = NULL, initial = initial)
+  choose <- match.arg(choose)
 
   res <- lapply(names(station_list), function(nm) {
     df_x <- station_list[[nm]]
 
-    # Align on timestamps for this regime
-    t_R <- he_R[[time_col]]
-    x_R <- df_x %>% filter(.data[[time_col]] %in% t_R) %>% arrange(.data[[time_col]])
+    # lags in HOURS from masked-hourly CCF
+    lags <- get_ccf_lags_hourly(df_he, df_x, reg = reg,
+                                time_col = time_col, value_col = value_col,
+                                lag_max = lag_max, top_k = top_k, choose = choose)
 
-    # Need same length after alignment
-    xy <- inner_join(
-      he_R %>% select(ts = all_of(time_col), y = all_of(value_col)),
-      x_R  %>% select(ts = all_of(time_col), x = all_of(value_col)),
-      by = "ts"
-    ) %>% tidyr::drop_na(y, x)
+    # build hourly joined frame for fitting
+    full <- make_hourly_grid_join(df_he, df_x, time_col = time_col, value_col = value_col)
 
-    if (nrow(xy) <= initial + 5) {
-      return(data.frame(station = nm, n = nrow(xy),
-                        lags = NA_character_, rmse_base = base,
-                        rmse_arimax = NA_real_, improvement = NA_real_))
-    }
-
-    # get lags using prewhitened CCF (uses df_he$res)
-    lags <- get_ccf_lags(df_he = df_he, df_x_pw = df_x, reg = reg,
-                         time_col = time_col,
-                         lag_max = lag_max, top_k = top_k)
+    # subset to regime hours for modeling y
+    full_reg <- full %>% filter(regime == reg)
 
     if (length(lags) == 0) {
-      return(data.frame(station = nm, n = nrow(xy),
-                        lags = "none", rmse_base = base,
-                        rmse_arimax = NA_real_, improvement = NA_real_))
+      # baseline on regime hours only
+      y0 <- full_reg$y %>% as.numeric()
+      y0 <- y0[!is.na(y0)]
+      if (length(y0) <= initial + 5) {
+        return(data.frame(station = nm, n = length(y0), lags = "none",
+                          rmse_base = NA_real_, rmse_arimax = NA_real_, improvement = NA_real_))
+      }
+      base <- score_arimax_fixed(y0, X = NULL, initial = min(initial, length(y0) - 2))
+      return(data.frame(station = nm, n = length(y0), lags = "none",
+                        rmse_base = base, rmse_arimax = NA_real_, improvement = NA_real_))
     }
 
-    X <- make_lagged_xreg(xy$x, lags)
+    # lagged x on FULL HOURLY GRID (correct hourly meaning)
+    X_full <- make_lagged_xreg(full$x, lags)
 
-    # drop rows made NA by lagging
-    keep <- complete.cases(xy$y, X)
-    y2 <- xy$y[keep]
-    X2 <- X[keep, , drop = FALSE]
+    # take the same regime rows from X_full
+    X_reg <- X_full[full$regime == reg, , drop = FALSE]
+    y_reg <- full$y[full$regime == reg]
 
-    r <- score_arimax_fixed(y2, X = X2, initial = min(initial, length(y2) - 2))
+    # keep complete cases (drops missing hours and lag-induced NA)
+    keep <- complete.cases(y_reg, X_reg)
+    y2 <- as.numeric(y_reg[keep])
+    X2 <- X_reg[keep, , drop = FALSE]
+
+    if (length(y2) <= initial + 5) {
+      return(data.frame(station = nm, n = length(y2), lags = paste(lags, collapse = ","),
+                        rmse_base = NA_real_, rmse_arimax = NA_real_, improvement = NA_real_))
+    }
+
+    # baseline should be computed on SAME y2 sample for fair comparison
+    base <- score_arimax_fixed(y2, X = NULL, initial = min(initial, length(y2) - 2))
+    r    <- score_arimax_fixed(y2, X = X2,   initial = min(initial, length(y2) - 2))
 
     data.frame(
       station = nm,
@@ -620,8 +662,8 @@ stations_R1 <- list(
   hä = df_hä_pw,
   hö = df_hö_pw
 )
-rank_R1 <- rank_stations_by_ccf_lags(df_he, stations_R1, reg = "R1",
-                                     lag_max = 50, top_k = 3, initial = 400)
+rank_R1 <- rank_stations_by_ccf_lags_hourly(df_he, stations_R1, reg = "R1",
+                                     lag_max = 50, top_k = 3, choose = "strongest", initial = 400)
 rank_R1
 ```
 
@@ -638,27 +680,23 @@ stations_R2 <- list(
   kb = df_kb_pw,
   ro = df_ro_pw
 )
-rank_R2 <- rank_stations_by_ccf_lags(df_he, stations_R2, reg = "R2",
-                                     lag_max = 50, top_k = 3, initial = 500)
+rank_R2 <- rank_stations_by_ccf_lags_hourly(df_he, stations_R2, reg = "R2",
+                                     lag_max = 50, top_k = 3, choose = "strongest", initial = 500)
 rank_R2
 ```
 ## R3
 ```{r}
-df_ro_pw <- prewhiten_station(df_ro)
-df_gn_pw <- prewhiten_station(df_gn)
-df_sl_pw <- prewhiten_station(df_sl)
-df_an_pw <- prewhiten_station(df_an)
-
 stations_R3 <- list(
-  ro = df_ro_pw,
-  gn = df_gn_pw,
-  sl = df_sl_pw,
-  an = df_an_pw
+  ro = prewhiten_station(df_ro),
+  gn = prewhiten_station(df_gn),
+  sl = prewhiten_station(df_sl),
+  an = prewhiten_station(df_an)
 )
-rank_R3 <- rank_stations_by_ccf_lags(df_he, stations_R3, reg = "R3",
-                                     lag_max = 50, top_k = 3, initial = 500)
+rank_R3 <- rank_stations_by_ccf_lags_hourly(df_he, stations_R3, reg = "R3",
+                                     lag_max = 50, top_k = 3, choose = "strongest", initial = 500)
 rank_R3
 ```
+
 ## R4
 ```{r}
 df_ni_pw <- prewhiten_station(df_ni)
@@ -670,13 +708,15 @@ stations_R4 <- list(
   ul = df_ul_pw,
   lj = df_lj_pw
 )
-rank_R4 <- rank_stations_by_ccf_lags(df_he, stations_R4, reg = "R4",
-                                     lag_max = 50, top_k = 3, initial = 200)
+rank_R4 <- rank_stations_by_ccf_lags_hourly(df_he, stations_R4, reg = "R4",
+                                     lag_max = 50, top_k = 3, choose = "strongest", initial = 200)
 rank_R4
 ```
 
-## Winners based on RMSE
-# R1 - Hörby, lags: 0, 22, 40
-# R2 - Köbenhavn lufthavn, lags: 0, 8, 19
-# R3 - Roskilde lufthavn, lags: 14, 15, 25
-# R4 - Ullared, lags: 0, 1, 14
+## Winners based on RMSE and absolute value of correlations
+# R1 - Hörby, lags: 0, 23, 47
+# R2 - Köbenhavn lufthavn, lags: 0, 10, 47
+# R3 - Sletterhage fyr, lags: 1, 12, 24
+# R4 - Ullared, lags: 0, 1, 25
+
+## Model orders and parameter estimates of each station after prewhitening -> used for predicting input in Kalman

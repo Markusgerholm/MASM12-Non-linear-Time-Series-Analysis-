@@ -382,22 +382,23 @@ table(df_he$regime, useNA = "ifany")
 ```
 
 ### R1
+## Hästveda & Hörby - hourly lags
 
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_hourly_lags(
   df_he = df_he,
-  df_x  = df_hö,
+  df_x  = df_hä,
   regimes = "R1"
 )
-plot_ccf_with_prewhitened_station(
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_hö,
   regimes = "R1"
 )
 ```
 
-## Hästveda & Hörby
+## Hästveda & Hörby - element lags
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -412,7 +413,22 @@ plot_ccf_with_prewhitened_station(
 )
 ```
 ### R2
-## Skillinge & Falterbo
+## Skillinge & Falsterbo - hourly lags
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_sk,
+  regimes = "R2"
+)
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_fa,
+  regimes = "R2"
+)
+```
+
+## Skillinge & Falsterbo - element lags
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -426,7 +442,22 @@ plot_ccf_with_prewhitened_station(
   regimes = "R2"
 )
 ```
-## Köbenhavn lufthavn & Roskilde lufthavn
+## Köbenhavn lufthavn & Roskilde lufthavn - hourly lag
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_kb,
+  regimes = "R2"
+)
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_ro,
+  regimes = "R2"
+)
+```
+
+## Köbenhavn lufthavn & Roskilde lufthavn - element lag
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -442,7 +473,22 @@ plot_ccf_with_prewhitened_station(
 ```
 
 ### R3
-## Roskilde lufthavn & Gniben
+## Roskilde lufthavn & Gniben - hourly lag
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_ro,
+  regimes = "R3"
+)
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_gn,
+  regimes = "R3"
+)
+```
+
+## Roskilde lufthavn & Gniben - element lag
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -456,7 +502,22 @@ plot_ccf_with_prewhitened_station(
   regimes = "R3"
 )
 ```
-## Sletterhage fyr & Anholt
+## Sletterhage fyr & Anholt - hourly lag
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_sl,
+  regimes = "R3"
+)
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_an,
+  regimes = "R3"
+)
+```
+
+## Sletterhage fyr & Anholt - element lag
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -472,7 +533,22 @@ plot_ccf_with_prewhitened_station(
 ```
 
 ### R4
-## Nidingen & Ullared
+## Nidingen & Ullared - hourly lag
+```{r}
+par(mfrow=c(1,2))
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_ni,
+  regimes = "R4"
+)
+plot_ccf_hourly_lags(
+  df_he = df_he,
+  df_x  = df_ul,
+  regimes = "R4"
+)
+```
+
+## Nidingen & Ullared - element lag
 ```{r}
 par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
@@ -486,9 +562,15 @@ plot_ccf_with_prewhitened_station(
   regimes = "R4"
 )
 ```
-##Ljungby
+##Ljungby - element lag vs hourly lag
 ```{r}
+par(mfrow=c(1,2))
 plot_ccf_with_prewhitened_station(
+  df_he = df_he,
+  df_x  = df_lj,
+  regimes = "R4"
+)
+plot_ccf_hourly_lags(
   df_he = df_he,
   df_x  = df_lj,
   regimes = "R4"
@@ -536,11 +618,11 @@ get_ccf_lags <- function(df_he, df_x_pw, reg,
 
 ```
 
-## See which lags are significant
+## See which lags are significant, e.g R3
 
 ```{r}
-df_ro_pw <- prewhiten_station(df_sk)
-lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R2", lag_max = 50, top_k = 3)
+df_ro_pw <- prewhiten_station(df_ro)
+lags_ro_R3 <- get_ccf_lags(df_he, df_ro_pw, reg = "R3", lag_max = 50, top_k = 3)
 lags_ro_R3
 ```
 
