@@ -113,22 +113,146 @@ y_an <- ts(df_an$Lufttemperatur, frequency = freq)
 fit_an_auto <- auto.arima(y_an)
 
 ## Calling function to get training data and data up to test set
-## getting training + intervening data + test set
-out_hö <- train_test(ts(hörby_2024$Lufttemperatur, frequency = freq), freq = 24, h_total=2500,h2=500)
+out_he <- train_test(ts(helsingborg_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_he <- out_he$y_train_total
+
+out_ul <- train_test(ts(ullared_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_ul <- out_ul$y_train_total
+
+out_fa <- train_test(ts(falsterbo_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_fa <- out_fa$y_train_total
+
+out_hö <- train_test(ts(hörby_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
 y_train_test_hö <- out_hö$y_train_total
 
+out_kb <- train_test(ts(köbenhavn_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_kb <- out_kb$y_train_total
+
+out_ro <- train_test(ts(roskilde_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_ro <- out_ro$y_train_total
+
+out_sl <- train_test(ts(slatterhage_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_sl <- out_sl$y_train_total
+
+out_gn <- train_test(ts(gniben_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_gn <- out_gn$y_train_total
+
+out_an <- train_test(ts(anholt_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+y_train_test_an <- out_an$y_train_total
+
 ## 1 step forecast error for test set
-list_hö <- train_test_res(fit_hö_auto, y_train_test, out_hö$t_test_start, out_hö$t_test_end)
-e_test_hö <- list_hö$e_test
+#Ullared, Falsterbo, Hörby, Köbenhavn, Roskilde, Sletterhage, Gniben, Anholt
+res_he <- train_test_res(fit, y_train_test_he, out_he$t_test_start, out_he$t_test_end)
+e_test_he <- res_he$e_test
 
+res_ul <- train_test_res(fit_ul_auto, y_train_test_ul, out_ul$t_test_start, out_ul$t_test_end)
+e_test_ul <- res_ul$e_test
 
+res_fa <- train_test_res(fit_fa_auto, y_train_test_fa, out_fa$t_test_start, out_fa$t_test_end)
+e_test_fa <- res_fa$e_test
 
+res_hö <- train_test_res(fit_hö_auto, y_train_test_hö, out_hö$t_test_start, out_hö$t_test_end)
+e_test_hö <- res_hö$e_test
 
+res_kb <- train_test_res(fit_kb_auto, y_train_test_kb, out_kb$t_test_start, out_kb$t_test_end)
+e_test_kb <- res_kb$e_test
 
+res_ro <- train_test_res(fit_ro_auto, y_train_test_ro, out_ro$t_test_start, out_ro$t_test_end)
+e_test_ro <- res_ro$e_test
 
-r <-  acf(e_test, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+res_sl <- train_test_res(fit_sl_auto, y_train_test_sl, out_sl$t_test_start, out_sl$t_test_end)
+e_test_sl <- res_sl$e_test
+
+res_gn <- train_test_res(fit_gn_auto, y_train_test_gn, out_gn$t_test_start, out_gn$t_test_end)
+e_test_gn <- res_gn$e_test
+e_test_gn <- na.interp(e_test_gn)
+
+res_an <- train_test_res(fit_an_auto, y_train_test_an, out_an$t_test_start, out_an$t_test_end)
+e_test_an <- res_an$e_test
+
+## ACF/PACF for Helsingborg residual, up to 12 lags according to ACF
+r <-  acf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
 r$acf[1] <- NA
 plot(r, main = "ACF", xaxt = "n")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
-pacf(e_test, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+pacf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
+
+## CCF between Helsingborg and station X
+plot_ccf_hourly(e_test_he, e_test_gn, max_lag_hours = 50)
+
+## Extracting residuals from training sequence
+t_train_start <- t_start
+t_train_end <- t_end
+e_train_he <- window(res_he$e_all, start = t_train_start, end = t_train_end)
+e_train_ul <- window(res_ul$e_all, start = t_train_start, end = t_train_end)
+e_train_fa <- window(res_fa$e_all, start = t_train_start, end = t_train_end)
+e_train_hö <- window(res_hö$e_all, start = t_train_start, end = t_train_end)
+e_train_kb <- window(res_kb$e_all, start = t_train_start, end = t_train_end)
+e_train_ro <- window(res_ro$e_all, start = t_train_start, end = t_train_end)
+e_train_sl <- window(res_sl$e_all, start = t_train_start, end = t_train_end)
+e_train_gn <- window(res_gn$e_all, start = t_train_start, end = t_train_end)
+e_train_an <- window(res_an$e_all, start = t_train_start, end = t_train_end)
+
+wd_all <- helsingborg_2024$Vindriktning   # <-- change if needed
+ws_all <- helsingborg_2024$Vindhastighet  # <-- change if needed
+
+reg_all <- wind_regime4(wd_all, ws_all, rot = 45)
+
+# Put regimes on the same ts index as y_all so window() works
+reg_ts <- ts(reg_all, frequency = freq)
+
+reg_train <- window(reg_ts, start = t_train_start, end = t_train_end)
+
+ex_list <- list(
+  ul = e_train_ul,
+  fa = e_train_fa,
+  hö = e_train_hö,
+  kb = e_train_kb,
+  ro = e_train_ro,
+  sl = e_train_sl,
+  gn = e_train_gn,
+  an = e_train_an
+)
+
+maxLag <- 50
+topK <- 5
+
+ccf_peaks <- list()
+
+for (R in levels(reg_train)) {
+  idx <- which(reg_train == R)
+  
+  # Skip empty/small regimes
+  if (length(idx) < 200) next
+  
+  # Build regime-specific vectors (keep alignment)
+  yR <- e_train_he[idx]
+  
+  for (nm in names(ex_list)) {
+    xR <- ex_list[[nm]][idx]
+    
+    # Drop NA pairs
+    ok <- complete.cases(as.numeric(yR), as.numeric(xR))
+    yRR <- yR[ok]
+    xRR <- xR[ok]
+    if (length(yRR) < 200) next
+    
+    # Plot CCF positive lags: ccf(y, x)
+    # NOTE: Positive lags in ccf(y, x) means x leads y (since x is the 2nd series).
+    df_cc <- plot_ccf_poslags(yRR, xRR, max_lag = maxLag,
+                              main = paste0("CCF (train) ", R, ": HE vs ", nm))
+    
+    # Save top peaks (by absolute magnitude)
+    ord <- order(abs(df_cc$ccf), decreasing = TRUE)
+    peaks <- head(df_cc[ord, ], topK)
+    peaks$regime <- R
+    peaks$station <- nm
+    
+    ccf_peaks[[paste(R, nm, sep = "_")]] <- peaks
+  }
+}
+
+ccf_peaks_df <- do.call(rbind, ccf_peaks)
+ccf_peaks_df <- ccf_peaks_df[order(ccf_peaks_df$regime, ccf_peaks_df$station, -abs(ccf_peaks_df$ccf)), ]
+print(ccf_peaks_df)
