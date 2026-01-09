@@ -89,13 +89,13 @@ table(helsingborg_2024$regime, useNA = "ifany")
 
 ## Regime switching model
 ```{r}
-#df_hö <- helsingborg_2024
-#df_ul <- ullared_2024
-#df_he <- helsingborg_2024
-#df_ro <- roskilde_2024
-#df_kb <- köbenhavn_2024
-#df_sl <- slatterhage_2024
-#df_gn <- gniben_2024
+df_hö <- helsingborg_2024
+df_ul <- ullared_2024
+df_he <- helsingborg_2024
+df_ro <- roskilde_2024
+df_kb <- köbenhavn_2024
+df_sl <- slatterhage_2024
+df_gn <- gniben_2024
 ```
 
 ## Kalman imputation for missing values
@@ -209,14 +209,17 @@ X_cols <- c(
 df_cc <- df_full %>%
   filter(complete.cases(y, across(all_of(X_cols))))  # drops rows where active-regime xreg is NA
 
-y_all <- ts(df_cc$y, frequency = 24)
+y_all1 <- ts(df_cc$y, frequency = 24)
 X_all <- as.matrix(df_cc[, X_cols])
 
 fixed_base <- c(p, q, NA)                     # your 18 AR + 23 MA + seasonal MA(1)
 fixed_all  <- c(fixed_base, rep(NA, ncol(X_all)))
+```
 
+
+```{r}
 fit_sarimax <- Arima(
-  y_all,
+  y_all1,
   order    = c(18,0,23),
   seasonal = c(0,1,1),
   xreg     = X_all,
@@ -254,10 +257,55 @@ lines(df_cc$ts_utc, fit_cc_base$fitted, col = "red")
 ## Checking RMSE for test set
 
 ```{r}
-fit_test <- Arima(y_train_test1, model = fit_sarimax)
+maxLagX <- 47
+i_test1_start <- end + gap
+i_test1_end   <- end + gap + h - 1
+i_block_start <- i_test1_start - maxLagX
+i_block_end   <- i_test1_end
+df_test_block <- df_full[i_block_start:i_block_end, ]
+keep <- complete.cases(df_test_block$y, df_test_block[, X_cols])
+df_test_block_cc <- df_test_block[keep, ]
+y_test_block <- ts(df_test_block_cc$y, frequency = 24)
+X_test_block <- as.matrix(df_test_block_cc[, X_cols])
 ```
 
+```{r}
+fit_block <- Arima(
+  y_test_block,
+  model = fit_sarimax,
+  xreg = X_test_block
+)
+```
 
+```{r}
+yhat_block <- fitted(fit_block)
+
+# Identify which rows of df_test_block_cc correspond to the far test window timestamps
+test_ts <- df_full$ts_utc[i_test1_start:i_test1_end]
+idx_test <- which(df_test_block_cc$ts_utc %in% test_ts)
+
+# Safety: should be h if nothing was dropped
+length(idx_test)
+
+y_obs_test_sarimax <- df_test_block_cc$y[idx_test]
+yhat_sarimax_test  <- as.numeric(yhat_block)[idx_test]
+```
+
+```{r}
+fit_block_base <- Arima(y_test_block, model = fit)  # reuse baseline SARIMA coefficients
+yhat_block_base <- fitted(fit_block_base)
+
+yhat_sarima_test <- as.numeric(yhat_block_base)[idx_test]
+rmse <- function(a,b) sqrt(mean((a-b)^2, na.rm=TRUE))
+mae  <- function(a,b) mean(abs(a-b), na.rm=TRUE)
+
+cat("n test points:", length(idx_test), "\n")
+cat("SARIMA RMSE:", rmse(y_obs_test_sarimax, yhat_sarima_test),
+    " MAE:", mae(y_obs_test_sarimax, yhat_sarima_test), "\n")
+cat("SARIMAX RMSE:", rmse(y_obs_test_sarimax, yhat_sarimax_test),
+    " MAE:", mae(y_obs_test_sarimax, yhat_sarimax_test), "\n")
+
+```
 
 ## Kalman filter - potential extension to code above, lets parameters vary over time and enables predictions of inputs
 
