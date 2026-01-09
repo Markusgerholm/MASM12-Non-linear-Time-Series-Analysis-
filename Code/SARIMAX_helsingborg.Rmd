@@ -17,32 +17,12 @@ setwd("..")
 source("Code/read_data2.r")
 ```
 
-## 2024 model
-
-```{r}
-helsingborg_2024 <- helsingborg %>%
-  filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
-    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
-  )
-hörby_2024 <- hörby %>%
-  filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
-    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
-  )
-ullared_2024 <- ullared %>%
-  filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
-    ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
-  )
-```
-
 ## Regular ARIMA model
 
 ```{r}
 start <- 3200
 end <- 5900
-df_he <- helsingborg_2024[start:end, ] # center
+#df_he <- helsingborg_2024[start:end, ] # center
 
 h <- 500
 freq <- 24
@@ -67,6 +47,7 @@ t_test1_start <- t_test_start + gap / freq
 t_test1_end   <- t_test1_start + (h - 1) / freq
 
 y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
+y_train_test1 <- window(y_all, start = t_start, end = t_test1_end) # training data + test data
 
 p <- rep(0, 18)
 p[1] <- NA
@@ -106,71 +87,15 @@ helsingborg_2024$regime <- wind_regime4(helsingborg_2024$Vindriktning, helsingbo
 table(helsingborg_2024$regime, useNA = "ifany")
 ```
 
-```{r}
-setwd("..")
-source("Code/DenmarkFunctions.r")
-```
-
-```{r}
-# Get available parameters for the station
-params <- c("temp_dry","wind_dir","wind_speed")
-
-start_time <- format(as.POSIXct(helsingborg_2024$ts_utc[1], tz = "UTC"),
-       "%Y-%m-%dT%H:%M:%SZ")
-end_time <- format(as.POSIXct(helsingborg_2024$ts_utc[nrow(helsingborg_2024)], tz = "UTC"),
-       "%Y-%m-%dT%H:%M:%SZ")
-```
-
-```{r}
-stations <- c(
-  kb = "06180", # Kobenhavn lufthavn
-  sl = "06073" # Sletterhage Fyr
-)
-df_list <- vector("list", length(stations))
-names(df_list) <- names(stations)
-
-missing_list <- vector("list", length(stations))
-names(missing_list) <- names(stations)
-
-for (nm in names(stations)) {
-  station_id <- stations[[nm]]
-
-  observations <- get_observations_for_station(
-    station_id = station_id,
-    parameters = params,
-    start_dt   = start_time,
-    end_dt     = end_time,
-    limit      = 60000
-  )
-
-  full_seq <- seq(
-    from = min(observations$observed),
-    to   = max(observations$observed),
-    by   = "10 min"
-  )
-
-  missing_times <- full_seq[!full_seq %in% observations$observed]
-  missing_list[[nm]] <- missing_times
-
-  df <- process_hourly_data(observations) %>%
-    rename(
-      Lufttemperatur = temp_dry,
-      Vindriktning   = wind_dir,
-      Vindhastighet  = wind_speed,
-      ts_utc         = observed
-    )
-
-  df_list[[nm]] <- df
-}
-df_kb <- df_list$kb
-df_sl <- df_list$sl
-```
-
 ## Regime switching model
 ```{r}
-df_hö <- helsingborg_2024
-df_ul <- ullared_2024
-df_he <- helsingborg_2024
+#df_hö <- helsingborg_2024
+#df_ul <- ullared_2024
+#df_he <- helsingborg_2024
+#df_ro <- roskilde_2024
+#df_kb <- köbenhavn_2024
+#df_sl <- slatterhage_2024
+#df_gn <- gniben_2024
 ```
 
 ## Kalman imputation for missing values
@@ -302,6 +227,7 @@ fit_sarimax <- Arima(
 summary(fit_sarimax)
 
 ```
+
 ## Plot of fitted values and observations
 
 ```{r}
@@ -325,6 +251,14 @@ plot(df_cc$ts_utc, df_cc$y, type = "l", col = "blue",
      xlab = "Time", ylab = "Temperature")
 lines(df_cc$ts_utc, fit_cc_base$fitted, col = "red")
 ```
+## Checking RMSE for test set
+
+```{r}
+fit_test <- Arima(y_train_test1, model = fit_sarimax)
+```
+
+
+
 ## Kalman filter - potential extension to code above, lets parameters vary over time and enables predictions of inputs
 
 ```{r}

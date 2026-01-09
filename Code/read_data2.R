@@ -1,7 +1,7 @@
 ## Libraries
 library(readr)
 library(dplyr)
-
+source("Code/DenmarkFunctions.r")
 ## Helsingborg
 helsingborg <- readr::read_csv("Data/helsingborg.csv") %>%
   mutate(ts_utc = as.POSIXct(ts_utc, tz = "UTC"))

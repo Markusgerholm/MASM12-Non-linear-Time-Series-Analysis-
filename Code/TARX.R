@@ -171,7 +171,7 @@ res_an <- train_test_res(fit_an_auto, y_train_test_an, out_an$t_test_start, out_
 e_test_an <- res_an$e_test
 
 ## ACF/PACF for Helsingborg residual, up to 12 lags according to ACF
-r <-  acf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r <-  acf(e_train_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
 r$acf[1] <- NA
 plot(r, main = "ACF", xaxt = "n")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
@@ -199,60 +199,242 @@ ws_all <- helsingborg_2024$Vindhastighet  # <-- change if needed
 
 reg_all <- wind_regime4(wd_all, ws_all, rot = 45)
 
-# Put regimes on the same ts index as y_all so window() works
-reg_ts <- ts(reg_all, frequency = freq)
+reg_train <- reg_all[start:end]
 
-reg_train <- window(reg_ts, start = t_train_start, end = t_train_end)
+# Ullared, Falsterbo, Hörby, Köbenhavn - switch "R4" to get plots for another regime
 
-ex_list <- list(
+par(mfrow=c(2,2))
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_ul,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_fa,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_hö,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_kb,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+
+# Roskilde, Sletterhage, Gniben, Anholt
+
+par(mfrow=c(2,2))
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_ro,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_sl,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_gn,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+plot_ccf_region(
+  res_he = e_train_he,
+  res_x  = e_train_an,
+  reg_vec = reg_train,
+  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50
+)
+## Screening based on CCF and lags yields:
+#R1: falsterbo, hörby, roskilde 
+#R2: ullared, köbenhavn, hörby, anholt 
+#R3: falsterbo, köbenhavn, roskilde, gniben 
+#R4: ullared, hörby
+
+## Finding optimal lags/stations from subset
+stations_by_regime <- list(
+  R1 = c("fa","hö","ro"),
+  R2 = c("ul","kb","hö","an"),
+  R3 = c("fa","kb","ro","gn"),
+  R4 = c("ul","hö")
+)
+
+stations_by_regime <- list(
+  R1 = c("hö"),
+  R2 = c("kb"),
+  R3 = c("ro"),
+  R4 = c("ul")
+)
+
+P_max <- 12 # max lags for helsingborg residual
+L_max <- 12 # max lags for exogenous lags
+
+# Master list of all training residuals
+ex_all <- list(
   ul = e_train_ul,
   fa = e_train_fa,
   hö = e_train_hö,
   kb = e_train_kb,
   ro = e_train_ro,
-  sl = e_train_sl,
   gn = e_train_gn,
   an = e_train_an
 )
 
-maxLag <- 50
-topK <- 5
+fits_by_regime <- list()
 
-ccf_peaks <- list()
-
-for (R in levels(reg_train)) {
-  idx <- which(reg_train == R)
-  
-  # Skip empty/small regimes
-  if (length(idx) < 200) next
-  
-  # Build regime-specific vectors (keep alignment)
-  yR <- e_train_he[idx]
-  
-  for (nm in names(ex_list)) {
-    xR <- ex_list[[nm]][idx]
-    
-    # Drop NA pairs
-    ok <- complete.cases(as.numeric(yR), as.numeric(xR))
-    yRR <- yR[ok]
-    xRR <- xR[ok]
-    if (length(yRR) < 200) next
-    
-    # Plot CCF positive lags: ccf(y, x)
-    # NOTE: Positive lags in ccf(y, x) means x leads y (since x is the 2nd series).
-    df_cc <- plot_ccf_poslags(yRR, xRR, max_lag = maxLag,
-                              main = paste0("CCF (train) ", R, ": HE vs ", nm))
-    
-    # Save top peaks (by absolute magnitude)
-    ord <- order(abs(df_cc$ccf), decreasing = TRUE)
-    peaks <- head(df_cc[ord, ], topK)
-    peaks$regime <- R
-    peaks$station <- nm
-    
-    ccf_peaks[[paste(R, nm, sep = "_")]] <- peaks
-  }
+for (R in names(stations_by_regime)) {
+  exR <- ex_all[ stations_by_regime[[R]] ]
+  fits_by_regime[[R]] <- fit_tarx_regime(
+    e_he = e_train_he,
+    ex_list = exR,
+    reg_vec = reg_train,
+    reg_name = R,
+    P_max = 12,
+    L_max = 12
+  )
 }
 
-ccf_peaks_df <- do.call(rbind, ccf_peaks)
-ccf_peaks_df <- ccf_peaks_df[order(ccf_peaks_df$regime, ccf_peaks_df$station, -abs(ccf_peaks_df$ccf)), ]
-print(ccf_peaks_df)
+# quick summary
+lapply(fits_by_regime, function(x) if (is.null(x)) NULL else c(n=x$n, aic=x$aic, adj_r2=x$adj_r2, n_coeff = length(x$terms)))
+
+fit_R1 <- fits_by_regime$R1$fit
+
+mf <- model.frame(fit_R1)     # data actually used after NA drops
+y_obs <- mf$y                 # observed within R1 (training rows used)
+y_hat <- fitted(fit_R1)       # fitted values aligned to y_obs
+
+c(
+  mean_obs = mean(y_obs),
+  mean_hat = mean(y_hat),
+  bias = mean(y_obs - y_hat),
+  sd_obs = sd(y_obs),
+  sd_hat = sd(y_hat),
+  sd_ratio = sd(y_hat) / sd(y_obs),
+  cor = cor(y_obs, y_hat)
+)
+acf(residuals(fits_by_regime$R4$fit), lag.max = 50)
+
+plot(y_obs, type = "l", ylab = "e_HE", xlab = "Row (R1 training used)", main = "R1: fitted vs observed (training)", col = "blue")
+lines(y_hat, col = "red")
+legend("topright", legend = c("observed", "fitted"), col = c("blue", "red"), lty = 1, bty = "n")
+
+## Testing if predictions are improved
+i_test1_start <- end + gap
+i_test1_end   <- end + gap + h - 1
+reg_test <- reg_all[i_test1_start:i_test1_end]
+
+rmse <- function(a, b) sqrt(mean((a - b)^2, na.rm = TRUE))
+mae  <- function(a, b) mean(abs(a - b), na.rm = TRUE)
+
+## Test "data"
+ex_test_all <- list(
+  ul = e_test_ul,
+  fa = e_test_fa,
+  hö = e_test_hö,
+  kb = e_test_kb,
+  ro = e_test_ro,
+  gn = e_test_gn,
+  an = e_test_an
+)
+## Function for predicting regimes based on wind direction
+pred_out <- predict_tarx_on_test(
+  fits_by_regime = fits_by_regime,
+  e_test_he = e_test_he,
+  ex_test_all = ex_test_all,
+  reg_test = reg_test,
+  stations_by_regime = stations_by_regime,
+  P_max = 12,
+  L_max = 12
+)
+## predicted forecast error
+e_hat_test <- pred_out$yhat
+## Plot for each regime
+par(mfrow = c(2,2))
+for (R in c("R1","R2","R3","R4")) {
+  if (is.null(pred_out$eval_rows[[R]])) next
+  y_obs <- pred_out$eval_rows[[R]]$y_obs
+  y_hat <- pred_out$eval_rows[[R]]$y_hat
+  
+  plot(y_obs, type="l", main=paste0(R, ": observed vs predicted (test)"),
+       xlab="Row (within regime, test)", ylab="e_HE")
+  lines(y_hat, col=2)
+  legend("topright", c("observed","predicted"), lty=1, col=c(1,2), bty="n")
+}
+par(mfrow = c(1,1))
+
+ok <- complete.cases(as.numeric(e_test_he), e_hat_test)
+## RMSE/MAE based on original residual and corrected residual
+baseline_rmse <- rmse(as.numeric(e_test_he)[ok], 0)
+baseline_mae  <- mae (as.numeric(e_test_he)[ok], 0)
+
+corrected_rmse <- rmse(as.numeric(e_test_he)[ok] - e_hat_test[ok], 0)
+corrected_mae  <- mae (as.numeric(e_test_he)[ok] - e_hat_test[ok], 0)
+
+cat("Test points used:", sum(ok), "out of", length(e_test_he), "\n")
+cat("Baseline (SARIMA errors):   RMSE =", baseline_rmse, " MAE =", baseline_mae, "\n")
+cat("After TARX correction:      RMSE =", corrected_rmse, " MAE =", corrected_mae, "\n")
+cat("RMSE improvement (%):", 100*(baseline_rmse - corrected_rmse)/baseline_rmse, "\n")
+cat("MAE  improvement (%):", 100*(baseline_mae  - corrected_mae )/baseline_mae,  "\n")
+
+## Adding to SARIMA forecast
+fit1 <- Arima(y_train_test_he, model=fit)
+yhat_sarima_all  <- fitted(fit1)  # 1-step predictions aligned to y_train_test1
+yhat_sarima_test <- window(yhat_sarima_all, start = out_he$t_test_start, end = out_he$t_test_end)
+y_obs_test <- y_test1
+
+## TARX corrected errors
+yhat_corr <- yhat_sarima_test + e_hat_test
+
+ok <- complete.cases(as.numeric(y_obs_test), as.numeric(yhat_sarima_test), yhat_corr)
+
+cat("SARIMA only: RMSE =", rmse(as.numeric(y_obs_test)[ok], as.numeric(yhat_sarima_test)[ok]),
+    " MAE =", mae(as.numeric(y_obs_test)[ok], as.numeric(yhat_sarima_test)[ok]), "\n")
+
+cat("SARIMA + TARX: RMSE =", rmse(as.numeric(y_obs_test)[ok], yhat_corr[ok]),
+    " MAE =", mae(as.numeric(y_obs_test)[ok], yhat_corr[ok]), "\n")
+
+# per-regime RMSE improvement
+reg_levels <- sort(unique(as.character(reg_test[ok])))
+
+per_regime <- do.call(rbind, lapply(reg_levels, function(R) {
+  idx <- which(ok & as.character(reg_test) == R)
+  if (length(idx) < 20) return(NULL)
+  
+  data.frame(
+    regime = R,
+    n = length(idx),
+    RMSE_SARIMA = rmse(as.numeric(y_obs_test)[idx], as.numeric(yhat_sarima_test)[idx]),
+    RMSE_CORR   = rmse(as.numeric(y_obs_test)[idx], yhat_corr[idx]),
+    MAE_SARIMA  = mae(as.numeric(y_obs_test)[idx], as.numeric(yhat_sarima_test)[idx]),
+    MAE_CORR    = mae(as.numeric(y_obs_test)[idx], yhat_corr[idx])
+  )
+}))
+
+# add % improvements (positive = better)
+if (!is.null(per_regime) && nrow(per_regime) > 0) {
+  per_regime$RMSE_impr_pct <- 100*(per_regime$RMSE_SARIMA - per_regime$RMSE_CORR)/per_regime$RMSE_SARIMA
+  per_regime$MAE_impr_pct  <- 100*(per_regime$MAE_SARIMA  - per_regime$MAE_CORR )/per_regime$MAE_SARIMA
+}
+
+print(per_regime)
+
+
