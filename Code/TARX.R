@@ -16,8 +16,11 @@ y_all <- ts(helsingborg_2024$Lufttemperatur, frequency = freq)
 # convert row indices to ts "time" values
 t_start <- 1 + (start - 1) / freq
 t_end   <- 1 + (end   - 1) / freq
+t_test_start <- 1 + (end) / freq          # row end + 1
+t_test_end   <- 1 + (end + h - 1) / freq  # row end + h
 # train as ts
 y_train <- window(y_all, start = t_start, end = t_end)
+y_test  <- window(y_all, start = t_test_start, end = t_test_end)
 # additional test set roughly 6 months forward in time
 gap <- 2000  
 t_test1_start <- t_test_start + gap / freq
@@ -108,3 +111,24 @@ y_filled[id_na] <- y_hat[id_na]
 df_an$Lufttemperatur[id_na] <- y_hat[id_na]
 y_an <- ts(df_an$Lufttemperatur, frequency = freq)
 fit_an_auto <- auto.arima(y_an)
+
+## Calling function to get training data and data up to test set
+## getting training + intervening data + test set
+out_hö <- train_test(ts(hörby_2024$Lufttemperatur, frequency = freq), freq = 24, h_total=2500,h2=500)
+y_train_test_hö <- out_hö$y_train_total
+
+## 1 step forecast error for test set
+list_hö <- train_test_res(fit_hö_auto, y_train_test, out_hö$t_test_start, out_hö$t_test_end)
+e_test_hö <- list_hö$e_test
+
+
+
+
+
+
+r <-  acf(e_test, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+pacf(e_test, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+axis(1, at = 0:100, labels = 0:100)   # label every lag

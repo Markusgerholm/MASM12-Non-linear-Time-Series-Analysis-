@@ -76,3 +76,40 @@ plot_ccf_hourly_lags <- function(df_he,
   
   invisible(list(fit_x = fit_x))
 }
+
+train_test <- function(y_all, freq, h, gap, fit){
+  start <- 3200
+  end <- 5900
+  t_start <- 1 + (start - 1) / freq
+  t_end   <- 1 + (end   - 1) / freq
+  t_test_start <- 1 + (end) / freq          # row end + 1
+  t_test_end   <- 1 + (end + h - 1) / freq  # row end + h
+  # additional test set roughly 6 months forward in time
+  t_test1_start <- t_test_start + gap / freq
+  t_test1_end   <- t_test1_start + (h - 1) / freq
+  y_train_test1 <- window(y_all, start = t_start, end = t_test1_end) # training data + test data
+}
+train_test <- function(y_all, freq, h_total, h2) {
+  start <- 3200
+  end   <- 5900
+  t_start <- 1 + (start - 1) / freq
+  # End of (intervening + test2)
+  t_end_total <- 1 + (end + h_total - 1) / freq
+  # Far test2 start = end + (h_total - h2)
+  t_test_start <- 1 + (end + (h_total - h2)) / freq
+  t_test_end   <- 1 + (end + h_total - 1) / freq
+  list(
+    y_train_total = window(y_all, start = t_start, end = t_end_total),
+    t_test_start = t_test_start,
+    t_test_end   = t_test_end
+  )
+}
+
+train_test_res <- function(fit, y_train_test, t_test_start, t_test_end){
+  fit1 <- Arima(y_train_test, model = fit)   # parameters held fixed
+  e_all <- fit1$residuals # 1 step forecast errors from training + test set
+  e_test <- window(e_all, start = t_test_start, end = t_test_end) # 1 step forecast errors for actual testing period
+  r <-  acf(e_test, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE) # 
+  
+  list(fit1 = fit1, e_all = e_all, e_test = e_test)
+}

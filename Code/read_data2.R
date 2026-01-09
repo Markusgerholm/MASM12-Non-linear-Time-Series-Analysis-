@@ -49,12 +49,13 @@ falsterbo_2024 <- falsterbo %>%
   )
 
 df_fa <- falsterbo_2024[start:end, ]
+
 ## Danish data
 params <- c("temp_dry","wind_dir","wind_speed")
 
-start_time <- format(as.POSIXct(df_he$ts_utc[1], tz = "UTC"),
+start_time <- format(as.POSIXct(helsingborg_2024$ts_utc[1], tz = "UTC"),
                      "%Y-%m-%dT%H:%M:%SZ")
-end_time <- format(as.POSIXct(df_he$ts_utc[nrow(df_he)], tz = "UTC"),
+end_time <- format(as.POSIXct(helsingborg_2024$ts_utc[nrow(helsingborg_2024)], tz = "UTC"),
                    "%Y-%m-%dT%H:%M:%SZ")
 stations <- c(
   kb = "06180", # Kobenhavn lufthavn
@@ -78,7 +79,7 @@ for (nm in names(stations)) {
     parameters = params,
     start_dt   = start_time,
     end_dt     = end_time,
-    limit      = 20000
+    limit      = 60000
   )
   
   full_seq <- seq(
@@ -99,9 +100,15 @@ for (nm in names(stations)) {
     )
   df_list[[nm]] <- df
 }
-
-df_kb <- df_list$kb
-df_ro <- df_list$ro
-df_gn <- df_list$gn
-df_sl <- df_list$sl
-df_an <- df_list$an
+# complete 2024 data
+köbenhavn_2024 <- df_list$kb
+roskilde_2024 <- df_list$ro
+gniben_2024 <- df_list$gn
+slatterhage_2024 <- df_list$sl
+anholt_2024 <- df_list$an
+# training split
+df_kb <- köbenhavn_2024[start:end, ]
+df_ro <- roskilde_2024[start:end, ]
+df_gn <- gniben_2024[start:end, ]
+df_sl <- slatterhage_2024[start:end, ]
+df_an <- anholt_2024[start:end, ]
