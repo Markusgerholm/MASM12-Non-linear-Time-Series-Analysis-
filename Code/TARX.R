@@ -26,7 +26,8 @@ gap <- 2000
 t_test1_start <- t_test_start + gap / freq
 t_test1_end   <- t_test1_start + (h - 1) / freq
 y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
-
+df_test <- helsingborg_2024[(end+2001):(end+2500), ]
+plot(df_test$ts_utc, y_test1, type = "l", col = "blue", main = "Temperature of Helsingborg", ylab = "Temperature (C°)", xlab = "Time")
 ## ACF/PACF on training data
 r <-  acf(y_train, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
 r$acf[1] <- NA
@@ -65,7 +66,13 @@ axis(1, at = 0:100, labels = 0:100)   # label every lag
 pacf(e_final, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
 
-qqnorm(e_plot); qqline(e_plot)
+## Plot of fitted vs obs
+train_df <- helsingborg_2024[start:end, ]
+
+plot(train_df$ts_utc, y_train, type = "l", col = "blue", main = "Temperature vs predicted temperatue", ylab = "Temperature (C°)", xlab = "Time")
+lines(train_df$ts_utc, fit$fitted, col = "red")
+legend("topleft", legend = c("observed", "fitted"), col = c("blue", "red"), lty = 1, bty = "n")
+
 ## Prediction residual from test set far away from training set
 y_train_test1 <- window(y_all, start = t_start, end = t_test1_end) # training data + test data
 fit1 <- Arima(y_train_test1, model = fit)   # parameters held fixed
@@ -205,9 +212,6 @@ axis(1, at = 0:100, labels = 0:100)   # label every lag
 pacf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
 
-## CCF between Helsingborg and station X
-plot_ccf_hourly(e_test_he, e_test_gn, max_lag_hours = 50)
-
 ## Extracting residuals from training sequence
 t_train_start <- t_start
 t_train_end <- t_end
@@ -235,29 +239,33 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_ul,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Ullared vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_fa,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Falsterbo vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_hö,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Hörby vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_kb,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "København vs Helsingborg"
 )
 
 # Roskilde, Sletterhage, Gniben, Anholt
@@ -267,29 +275,33 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_ro,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Roskilde vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_sl,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Sletterhage fyr vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_gn,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Gniben vs Helsingborg"
 )
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_an,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
-  lag_max = 50
+  regimes = c("R1"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  lag_max = 50,
+  main_prefix = "Anholt vs Helsingborg"
 )
 ## Screening based on CCF and lags yields:
 #R1: falsterbo, hörby, roskilde 

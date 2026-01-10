@@ -86,7 +86,7 @@ plot_ccf_region <- function(res_he,
                                               regimes = c("R1","R2","R3","R4"),
                                               lag_max = 50,
                                               positive_lags_only = TRUE,
-                                              main_prefix = "CCF") {
+                                              main_prefix = "X vs Helsingborg CCF") {
   # res_he: Helsingborg residuals (ts or numeric)
   # res_x : other-station residuals (ts or numeric)
   # reg_vec: vector/factor of regimes, same length/order as residuals
@@ -135,7 +135,7 @@ plot_ccf_region <- function(res_he,
     plot(r$lag[keep], r$acf[keep], type = "h",
          xlab = "Lag (hours, if hourly data)",
          ylab = "CCF",
-         main = paste0(main_prefix, " – ", reg, " (x vs HE)"),
+         main = paste0(main_prefix, " – ", reg),
          ylim = c(-0.1, 0.3))
     
     abline(h = 0)
