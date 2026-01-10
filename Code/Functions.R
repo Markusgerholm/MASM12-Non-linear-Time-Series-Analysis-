@@ -136,6 +136,7 @@ plot_ccf_region <- function(res_he,
          xlab = "Lag (hours, if hourly data)",
          ylab = "CCF",
          main = paste0(main_prefix, " – ", reg),
+         cex.main = 0.9,
          ylim = c(-0.1, 0.3))
     
     abline(h = 0)
