@@ -204,13 +204,6 @@ e_test_gn <- na.interp(e_test_gn)
 res_an <- train_test_res(fit_an_auto, y_train_test_an, out_an$t_test_start, out_an$t_test_end)
 e_test_an <- res_an$e_test
 
-## ACF/PACF for Helsingborg residual, up to 12 lags according to ACF
-r <-  acf(e_train_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
-r$acf[1] <- NA
-plot(r, main = "ACF", xaxt = "n")
-axis(1, at = 0:100, labels = 0:100)   # label every lag
-pacf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
-axis(1, at = 0:100, labels = 0:100)   # label every lag
 
 ## Extracting residuals from training sequence
 t_train_start <- t_start
@@ -224,6 +217,14 @@ e_train_ro <- window(res_ro$e_all, start = t_train_start, end = t_train_end)
 e_train_sl <- window(res_sl$e_all, start = t_train_start, end = t_train_end)
 e_train_gn <- window(res_gn$e_all, start = t_train_start, end = t_train_end)
 e_train_an <- window(res_an$e_all, start = t_train_start, end = t_train_end)
+
+## ACF/PACF for Helsingborg residual, up to 12 lags according to ACF
+r <-  acf(e_train_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+pacf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
 
 wd_all <- helsingborg_2024$Vindriktning   # <-- change if needed
 ws_all <- helsingborg_2024$Vindhastighet  # <-- change if needed
