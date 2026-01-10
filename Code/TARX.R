@@ -26,6 +26,22 @@ gap <- 2000
 t_test1_start <- t_test_start + gap / freq
 t_test1_end   <- t_test1_start + (h - 1) / freq
 y_test1 <- window(y_all, start = t_test1_start, end = t_test1_end)
+
+## ACF/PACF on training data
+r <-  acf(y_train, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+## ACF/PACF on seasonal difference
+fit_plot <- Arima(y_train, order = c(0,0,0), seasonal = c(0,1,1))
+e_plot <- fit_plot$residuals
+r <-  acf(e_plot, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+pacf(e_plot, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+## Final model
 p <- rep(0, 18)
 p[1] <- NA
 p[2] <- NA
@@ -39,6 +55,17 @@ fit <- Arima(y_train,
              order = c(18,0,23),
              fixed = c(p,q,NA),
              seasonal = c(0,1,1))
+## ACF/PACF on final model residual
+par(mfrow=c(1,2))
+e_final <- fit$residuals
+r <-  acf(e_final, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r$acf[1] <- NA
+plot(r, main = "ACF", xaxt = "n")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+pacf(e_final, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
+axis(1, at = 0:100, labels = 0:100)   # label every lag
+
+qqnorm(e_plot); qqline(e_plot)
 ## Prediction residual from test set far away from training set
 y_train_test1 <- window(y_all, start = t_start, end = t_test1_end) # training data + test data
 fit1 <- Arima(y_train_test1, model = fit)   # parameters held fixed
