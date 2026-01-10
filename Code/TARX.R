@@ -306,22 +306,15 @@ plot_ccf_region(
 ## Screening based on CCF and lags yields:
 #R1: falsterbo, hörby, roskilde 
 #R2: ullared, köbenhavn, hörby, anholt 
-#R3: falsterbo, köbenhavn, roskilde, gniben 
-#R4: ullared, hörby
+#R3: falsterbo, köbenhavn, roskilde, hörby 
+#R4: ullared, hörby, falsterbo
 
 ## Finding optimal lags/stations from subset
 stations_by_regime <- list(
   R1 = c("fa","hö","ro"),
   R2 = c("ul","kb","hö","an"),
-  R3 = c("fa","kb","ro","gn"),
-  R4 = c("ul","hö")
-)
-
-stations_by_regime <- list(
-  R1 = c("hö"),
-  R2 = c("kb"),
-  R3 = c("ro"),
-  R4 = c("ul")
+  R3 = c("fa","kb","ro","hö"),
+  R4 = c("ul","hö", "fa")
 )
 
 P_max <- 12 # max lags for helsingborg residual

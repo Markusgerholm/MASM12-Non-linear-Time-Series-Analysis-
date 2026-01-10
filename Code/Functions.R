@@ -124,16 +124,16 @@ plot_ccf_region <- function(res_he,
     }
     
     r <- ccf(xRR, heRR, lag.max = lag_max, na.action = na.omit, plot = FALSE)
-    
     # Positive lags only if requested
-    keep <- if (positive_lags_only) r$lag >= 0 else rep(TRUE, length(r$lag))
+    keep <- r$lag > 0
+    #keep <- if (positive_lags_only) r$lag >= 0 else rep(TRUE, length(r$lag))
     
     # CI lines (same idea as default acf/ccf)
     n <- length(xRR)
     ci <- 1.96 / sqrt(n)
     
     plot(r$lag[keep], r$acf[keep], type = "h",
-         xlab = "Lag (hours, if hourly data)",
+         xlab = "Lag",
          ylab = "CCF",
          main = paste0(main_prefix, " – ", reg),
          cex.main = 0.9,
