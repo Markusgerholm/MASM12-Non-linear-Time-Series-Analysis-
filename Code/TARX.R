@@ -232,14 +232,14 @@ reg_all <- wind_regime4(wd_all, ws_all, rot = 45)
 
 reg_train <- reg_all[start:end]
 
-# Ullared, Falsterbo, Hörby, Köbenhavn - switch "R4" to get plots for another regime
-
+# Ullared, Falsterbo, Hörby, Köbenhavn - switch string to get plots for another regime
+string <- "R4"
 par(mfrow=c(2,2))
 plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_ul,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Ullared vs Helsingborg"
 )
@@ -247,7 +247,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_fa,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Falsterbo vs Helsingborg"
 )
@@ -255,7 +255,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_hö,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Hörby vs Helsingborg"
 )
@@ -263,7 +263,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_kb,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "København vs Helsingborg"
 )
@@ -275,7 +275,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_ro,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Roskilde vs Helsingborg"
 )
@@ -283,7 +283,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_sl,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Sletterhage fyr vs Helsingborg"
 )
@@ -291,7 +291,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_gn,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Gniben vs Helsingborg"
 )
@@ -299,7 +299,7 @@ plot_ccf_region(
   res_he = e_train_he,
   res_x  = e_train_an,
   reg_vec = reg_train,
-  regimes = c("R4"),     # choose one or several, e.g. c("R1","R2","R3","R4")
+  regimes = c(string),     # choose one or several, e.g. c("R1","R2","R3","R4")
   lag_max = 50,
   main_prefix = "Anholt vs Helsingborg"
 )
