@@ -337,6 +337,7 @@ c(
   cor = cor(y_obs, y_hat)
 )
 # Plot of observed vs fitted
+par(mfrow = c(1,1))
 plot(y_obs, type = "l", ylab = "e_HE", xlab = "Row (R1 training used)", main = "R1: fitted vs observed (training)", col = "blue")
 lines(y_hat, col = "red")
 legend("topright", legend = c("observed", "fitted"), col = c("blue", "red"), lty = 1, bty = "n")
@@ -360,15 +361,6 @@ ex_test_all <- list(
   an = e_test_an
 )
 
-#pred_out <- predict_tarx_on_test(
-#  fits_by_regime = fits_by_regime,
-#  e_test_he = e_test_he,
-#  ex_test_all = ex_test_all,
-#  reg_test = reg_test,
-#  stations_by_regime = stations_by_regime,
-#  P_max = P_max,
-#  L_max = L_max
-#)
 ex_val_all <- list(ul=e_val_ul, fa=e_val_fa, hö=e_val_hö, kb=e_val_kb,
                    ro=e_val_ro, gn=e_val_gn, an=e_val_an)
 
