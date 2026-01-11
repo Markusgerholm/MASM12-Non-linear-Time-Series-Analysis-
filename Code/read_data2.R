@@ -8,7 +8,7 @@ helsingborg <- readr::read_csv("Data/helsingborg.csv") %>%
 
 helsingborg_2024 <- helsingborg %>%
   filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc >= as.POSIXct("2024-01-01 01:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
   )
 start <- 3200
@@ -20,7 +20,7 @@ hörby <- readr::read_csv("Data/hörby.csv") %>%
 
 hörby_2024 <- hörby %>%
   filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc >= as.POSIXct("2024-01-01 01:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
   )
 
@@ -32,7 +32,7 @@ ullared <- readr::read_csv("Data/ullared.csv") %>%
 
 ullared_2024 <- ullared %>%
   filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc >= as.POSIXct("2024-01-01 01:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
   )
 
@@ -44,7 +44,7 @@ falsterbo <- readr::read_csv("Data/falsterbo.csv") %>%
 
 falsterbo_2024 <- falsterbo %>%
   filter(
-    ts_utc >= as.POSIXct("2024-01-01 00:00:00", tz = "UTC"),
+    ts_utc >= as.POSIXct("2024-01-01 01:00:00", tz = "UTC"),
     ts_utc <= as.POSIXct("2024-12-31 23:59:59", tz = "UTC")
   )
 
@@ -102,10 +102,13 @@ for (nm in names(stations)) {
 }
 # complete 2024 data
 köbenhavn_2024 <- df_list$kb
+köbenhavn_2024 <- köbenhavn_2024[2:8784, ]
 roskilde_2024 <- df_list$ro
+roskilde_2024 <- roskilde_2024[2:8784, ]
 gniben_2024 <- df_list$gn
 slatterhage_2024 <- df_list$sl
 anholt_2024 <- df_list$an
+anholt_2024 <- anholt_2024[2:8784, ]
 # training split
 df_kb <- köbenhavn_2024[start:end, ]
 df_ro <- roskilde_2024[start:end, ]

@@ -147,7 +147,7 @@ y_an <- ts(df_an$Lufttemperatur, frequency = freq)
 fit_an_auto <- auto.arima(y_an)
 
 ## Calling function to get training data and data up to test set
-out_he <- train_test(ts(helsingborg_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
+out_he <- train_test(ts(helsingborg_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=4384,h2=2384)
 y_train_test_he <- out_he$y_train_total
 
 out_ul <- train_test(ts(ullared_2024$Lufttemperatur, frequency = freq), frequency = freq, h_total=2500,h2=500)
@@ -219,10 +219,11 @@ e_train_gn <- window(res_gn$e_all, start = t_train_start, end = t_train_end)
 e_train_an <- window(res_an$e_all, start = t_train_start, end = t_train_end)
 
 ## ACF/PACF for Helsingborg residual, up to 12 lags according to ACF
-r <-  acf(e_train_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
+r <-  acf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", plot = FALSE)
 r$acf[1] <- NA
 plot(r, main = "ACF", xaxt = "n")
-axis(1, at = 0:100, labels = 0:100)   # label every lag
+axis(1, at = (0:50)/freq, labels = 0:50)  # 0..50 hours
+#axis(1, at = 0:100, labels = 0:100)   # label every lag
 pacf(e_test_he, lag.max = 50, na.action = na.omit, xaxt = "n", main = "PACF")
 axis(1, at = 0:100, labels = 0:100)   # label every lag
 
@@ -234,7 +235,7 @@ reg_all <- wind_regime4(wd_all, ws_all, rot = 45)
 reg_train <- reg_all[start:end]
 
 # Ullared, Falsterbo, Hörby, Köbenhavn - switch string to get plots for another regime
-string <- "R4"
+string <- "R1"
 par(mfrow=c(2,2))
 plot_ccf_region(
   res_he = e_train_he,
@@ -310,16 +311,22 @@ plot_ccf_region(
 #R3: falsterbo, köbenhavn, roskilde, hörby 
 #R4: ullared, hörby, falsterbo
 
+# No lag zero CCF
+#R1: Ullared, Hörby, Falsterbo
+#R2: Hörby, Anholt
+#R3: Hörby, Gniben
+#R4: Ullared, Hörby
+
 ## Finding optimal lags/stations from subset
 stations_by_regime <- list(
-  R1 = c("fa","hö","ro"),
-  R2 = c("ul","kb","hö","an"),
-  R3 = c("fa","kb","ro","hö"),
-  R4 = c("ul","hö", "fa")
+  R1 = c("ul","hö","fa"),
+  R2 = c("hö","an"),
+  R3 = c("hö", "gn"),
+  R4 = c("ul","hö")
 )
 
-P_max <- 12 # max lags for helsingborg residual
-L_max <- 12 # max lags for exogenous lags
+P_max <- 1 # max lags for helsingborg residual
+L_max <- 6 # max lags for exogenous lags
 
 # Master list of all training residuals
 ex_all <- list(
@@ -341,13 +348,18 @@ for (R in names(stations_by_regime)) {
     ex_list = exR,
     reg_vec = reg_train,
     reg_name = R,
-    P_max = 12,
-    L_max = 12
+    P_max = P_max,
+    L_max = L_max
   )
 }
 
 # quick summary
 lapply(fits_by_regime, function(x) if (is.null(x)) NULL else c(n=x$n, aic=x$aic, adj_r2=x$adj_r2, n_coeff = length(x$terms)))
+# Summary of each fit
+summary(fits_by_regime$R1$fit)
+summary(fits_by_regime$R2$fit)
+summary(fits_by_regime$R3$fit)
+summary(fits_by_regime$R4$fit)
 
 fit_R1 <- fits_by_regime$R1$fit
 
